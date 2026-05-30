@@ -1,0 +1,8 @@
+# PlatformIO build artifacts
+.pio/
+
+# Secrets (real WiFi creds live here, never committed) — arrives in Plan 2
+include/secrets.h
+
+# macOS
+.DS_Store
