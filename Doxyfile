@@ -1,0 +1,27 @@
+# Generate browseable HTML API docs for the M5 libraries from their source.
+#   doxygen Doxyfile   →   open .doxygen/html/index.html
+# EXTRACT_ALL=YES is essential: the source is barely commented, so without it
+# Doxygen would emit almost nothing. EXCLUDE_PATTERNS drops huge data blobs
+# (font bitmaps, demo images) that have no API and overflow Doxygen's lexer.
+
+PROJECT_NAME         = "M5GFX + M5Unified (StickS3)"
+OUTPUT_DIRECTORY     = .doxygen
+GENERATE_HTML        = YES
+GENERATE_LATEX       = NO
+
+INPUT                = .pio/libdeps/r1_hello/M5GFX/src \
+                       .pio/libdeps/r1_hello/M5Unified/src
+RECURSIVE            = YES
+
+EXCLUDE_PATTERNS     = */Fonts/* \
+                       */picture_frame/* \
+                       *lgfx_fonts.cpp
+
+EXTRACT_ALL          = YES
+EXTRACT_STATIC       = YES
+HIDE_UNDOC_MEMBERS   = NO
+WARN_IF_UNDOCUMENTED = NO
+QUIET                = YES
+
+GENERATE_TREEVIEW    = YES
+HAVE_DOT             = NO

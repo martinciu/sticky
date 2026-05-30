@@ -1,0 +1,37 @@
+# clangd config for this ESP32-S3 / PlatformIO project.
+#
+# clangd is LLVM-based, but PlatformIO compiles with the Xtensa GCC
+# cross-compiler, which passes GCC-only flags clangd can't parse. Left in,
+# they produce a flood of false "unknown argument" errors and break indexing.
+# Stripping them lets clangd index the M5Unified / Arduino-ESP32 sources so
+# you get real completion + go-to-definition on M5.Display, M5.BtnA, etc.
+CompileFlags:
+  Remove:
+    - -mlongcalls
+    - -mtext-section-literals
+    - -mfix-esp32-psram-cache-issue
+    - -mfix-esp32-psram-cache-strategy=*
+    - -fno-tree-switch-conversion
+    - -fstrict-volatile-bitfields
+    - -free
+    - -fipa-pta
+    - -fno-shrink-wrap
+
+Diagnostics:
+  # The Xtensa toolchain ships system headers (e.g. <xtensa/hal.h>, reached via
+  # a relative "../hal.h") that GCC finds through its builtin search paths but
+  # clangd can't see (the compiler is invoked by bare name, off-PATH, so clangd
+  # can't query it). This silences ONLY the "file not found" preprocessor error.
+  # A real typo'd #include in your own code still surfaces loudly as a cascade
+  # of "undeclared identifier" errors, so this won't hide your mistakes.
+  #
+  # typecheck_no_member / ovl_no_viable_member_function_in_call: the follow-on
+  # FALSE errors on M5Canvas/LovyanGFX members (clangd sees the base class as
+  # incomplete because of the same unresolved system header). TRADE-OFF: these
+  # two also hide *genuine* "no member named" / wrong-overload mistakes in your
+  # own code — but `pio run` (the compiler) still catches those at build time.
+  # The no-trade-off fix is clangd --query-driver; remove these two if you do it.
+  Suppress:
+    - pp_file_not_found
+    - typecheck_no_member
+    - ovl_no_viable_member_function_in_call
