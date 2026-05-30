@@ -7,42 +7,12 @@
 #include "secrets.h"        // WIFI_SSID, WIFI_PASSWORD
 #include "config.h"         // location, timezone, refresh intervals
 #include "debug_stats.h"    // debugStatsEvery()
+#include "weather.h"        // Weather, wmoLabel(), parseWeather()  (lib/weather)
 
 // ===================== Weather =====================
-struct Weather {
-  bool ok = false;
-  float tempC = 0.0f;
-  int code = -1; // WMO weather code
-};
-
-const char *wmoLabel(int code) {
-  switch (code) {
-  case 0:                    return "Clear";
-  case 1: case 2: case 3:    return "Cloudy";
-  case 45: case 48:          return "Fog";
-  case 51: case 53: case 55: return "Drizzle";
-  case 61: case 63: case 65: return "Rain";
-  case 71: case 73: case 75: return "Snow";
-  case 80: case 81: case 82: return "Showers";
-  case 95: case 96: case 99: return "Storm";
-  default:                   return "?";
-  }
-}
-
-// PURE: JSON string -> Weather. No network/hardware (host-unit-testable).
-Weather parseWeather(const char *json) {
-  Weather w;
-  JsonDocument doc;
-  if (deserializeJson(doc, json))
-    return w;
-  JsonObject cur = doc["current"];
-  if (cur.isNull())
-    return w;
-  w.tempC = cur["temperature_2m"] | 0.0f;
-  w.code = cur["weather_code"] | -1;
-  w.ok = (w.code >= 0);
-  return w;
-}
+// The Weather model + parsing now live in lib/weather (so they can be
+// unit-tested on the host). fetchWeather() below adds the device-only
+// HTTPS networking around the pure parseWeather().
 
 Weather fetchWeather() {
   String url = String("https://api.open-meteo.com/v1/forecast?latitude=") +
