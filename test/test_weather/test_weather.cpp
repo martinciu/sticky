@@ -2,6 +2,9 @@
 // Run on your Mac with:  pio test -e native   (no board needed)
 #include <unity.h>
 #include "weather.h"
+#ifdef ARDUINO
+#include <Arduino.h> // setup()/loop()/delay() when running on the board
+#endif
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -44,12 +47,28 @@ void test_wmo_labels(void) {
   TEST_ASSERT_EQUAL_STRING("?", wmoLabel(424242)); // unknown code
 }
 
-int main(int, char **) {
+static void runAllTests(void) {
   UNITY_BEGIN();
   RUN_TEST(test_parses_valid_response);
   RUN_TEST(test_rejects_malformed_json);
   RUN_TEST(test_rejects_missing_current);
   RUN_TEST(test_handles_negative_temperature);
   RUN_TEST(test_wmo_labels);
-  return UNITY_END();
+  UNITY_END();
 }
+
+#ifdef ARDUINO
+// On the board: run once at boot. The delay lets the USB-CDC port reattach
+// after the reset so the serial monitor doesn't miss the results.
+void setup() {
+  delay(2000);
+  runAllTests();
+}
+void loop() {}
+#else
+// On the host: a plain executable.
+int main(int, char **) {
+  runAllTests();
+  return 0;
+}
+#endif
