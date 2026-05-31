@@ -54,11 +54,17 @@ soon as `test/test_audio/` `#include`s it — the same mechanism that already pu
 in `lib/weather`.
 
 ```
-lib/audio/audio.h, audio.cpp     PURE level math (no M5/Arduino/WiFi)  ← host-tested
-src/mic_speaker_demo/main.cpp    thin hardware wrapper: mic, speaker, codec toggle, render
-test/test_audio/test_audio.cpp   Unity host tests for lib/audio
-platformio.ini                   + one [env:mic_speaker_demo] block
+lib/audio/audio.{h,cpp}              PURE level math (no M5/Arduino/WiFi)  ← host-tested
+src/mic_speaker_demo/audio_io.{h,cpp} mic/speaker hardware: ES8311 toggle, record buffer, capture, playback, VU read
+src/mic_speaker_demo/vu_view.{h,cpp}  renders a Frame into the off-screen sprite (pure presentation)
+src/mic_speaker_demo/app.{h,cpp}      the state machine; owns AudioIo + VuView
+src/mic_speaker_demo/main.cpp         thin wiring: App app; setup()->begin(); loop()->loop();
+test/test_audio/test_audio.cpp        Unity host tests for lib/audio
+platformio.ini                        + one [env:mic_speaker_demo] block
 ```
+
+`build_src_filter = +<mic_speaker_demo/>` compiles every file in the rung folder,
+so the split into `audio_io` / `vu_view` / `app` / `main` needs no extra config.
 
 ```ini
 [env:mic_speaker_demo]
@@ -70,8 +76,9 @@ build_src_filter = -<*> +<mic_speaker_demo/>
 
 `lib/audio` depends only on the C++ standard library (`<cstdint>`, `<cstddef>`,
 `<cmath>`) — no Arduino, no M5, no WiFi headers — so it compiles and runs on the
-host. The device-only mic capture, speaker output, and ES8311 toggle stay thin
-in `main.cpp`, wrapping the pure level math. Same pattern as
+host. The device-only mic capture, speaker output, and ES8311 toggle live in
+`audio_io`, rendering in `vu_view`, and the state machine in `app` — each a
+small, single-responsibility unit wrapping the pure level math. Same pattern as
 `weather_parse` vs `weather_client`.
 
 ## 4. Components
@@ -102,25 +109,25 @@ uint8_t dbToBar(float dbfs, float floorDb = -60.0f, float ceilDb = 0.0f);
 `dbToBar` is split out so its clamping/scaling is testable independently of the
 RMS/peak arithmetic.
 
-### `src/mic_speaker_demo/main.cpp` (thin hardware)
+### `src/mic_speaker_demo/` (device, split by responsibility)
 
-Responsibilities, each kept small:
-
-- **Codec handoff helpers** — the heart of the lesson:
-  - `enterMic()`  → `M5.Speaker.end(); M5.Mic.begin();`
-  - `enterSpeaker()` → `M5.Mic.end(); M5.Speaker.begin();`
-  Each carries the "mic and speaker can't run at once on the shared ES8311"
-  comment. Every state transition that changes the audio direction goes through
-  one of these, so the two are never active simultaneously.
-- **Buffers** — a record buffer in **internal DMA-capable RAM**
-  (`heap_caps_malloc(bytes, MALLOC_CAP_8BIT)` — the I2S DMA requires internal RAM;
-  PSRAM is the wrong heap here and isn't enabled in this build — see Findings),
-  **sized at runtime** to the free internal RAM minus a safety margin and capped
-  at `MAX_REC_SECONDS`. A small static VU block buffer (256 samples) and one
-  full-screen `M5Canvas` sprite reused every frame.
-- **Render** — draw the whole frame into the sprite, then `pushSprite(0, 0)`
-  (the repo's flicker-free convention).
-- **Loop** — non-blocking, `millis()`-paced; the state machine below.
+- **`AudioIo`** (`audio_io.{h,cpp}`) — all mic/speaker hardware. The heart of the
+  lesson is its private codec-handoff helpers (`enterMic()` =
+  `Speaker.end(); Mic.begin();`, `enterSpeaker()` = `Mic.end(); Speaker.begin();`),
+  since the mic and speaker share one ES8311 and can't both be active. It also
+  owns the record buffer — **internal DMA-capable RAM** (`heap_caps_malloc(bytes,
+  MALLOC_CAP_8BIT)`; the I2S DMA needs internal RAM, PSRAM is the wrong heap and
+  isn't enabled here — see Findings), **sized at runtime** to free internal RAM
+  minus a margin, capped at `MAX_REC_SECONDS` — and exposes `readVuLevel()`,
+  chunked `startCapture()`/`pumpCapture()`, `playCaptured()`, `playTone()`.
+- **`VuView`** (`vu_view.{h,cpp}`) — pure presentation. Takes a `Frame` struct
+  (status, color, level, peak, progress, …) and draws it into one full-screen
+  `M5Canvas` sprite, then `pushSprite(0,0)` (the repo's flicker-free convention).
+  Holds no model state.
+- **`App`** (`app.{h,cpp}`) — the non-blocking, `millis()`-paced state machine.
+  Owns an `AudioIo` and a `VuView`, holds the per-frame values, and has one
+  method per state plus a single `transitionTo()`.
+- **`main.cpp`** — just `App app; setup(){ app.begin(); } loop(){ app.loop(); }`.
 
 ## 5. Behavior, buttons & state machine
 
