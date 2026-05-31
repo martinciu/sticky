@@ -165,6 +165,35 @@ void test_step_is_noop_after_game_over(void) {
   TEST_ASSERT_FLOAT_WITHIN(0.001f, x, s.ball.pos.x);   // frozen
 }
 
+void test_dots_never_spawn_on_holes(void) {
+  marble::Config cfg;  // 4 dots, 3 holes
+  for (uint32_t seed = 1; seed <= 200; ++seed) {
+    marble::GameState s;
+    marble::reset(s, cfg, seed);
+    for (int d = 0; d < cfg.numDots; ++d)
+      for (int h = 0; h < cfg.numHoles; ++h) {
+        float dx = s.dots[d].pos.x - s.holes[h].pos.x;
+        float dy = s.dots[d].pos.y - s.holes[h].pos.y;
+        TEST_ASSERT_TRUE(sqrtf(dx*dx + dy*dy) >= cfg.holeR + cfg.dotR);
+      }
+  }
+}
+
+void test_eaten_dot_respawns_off_holes(void) {
+  marble::Config cfg; cfg.numDots = 1; cfg.numHoles = 3;
+  for (uint32_t seed = 1; seed <= 100; ++seed) {
+    marble::GameState s;
+    marble::reset(s, cfg, seed);
+    s.ball.pos = s.dots[0].pos;     // sit on the dot, then eat it
+    marble::eatDots(s, cfg);
+    for (int h = 0; h < cfg.numHoles; ++h) {
+      float dx = s.dots[0].pos.x - s.holes[h].pos.x;
+      float dy = s.dots[0].pos.y - s.holes[h].pos.y;
+      TEST_ASSERT_TRUE(sqrtf(dx*dx + dy*dy) >= cfg.holeR + cfg.dotR);
+    }
+  }
+}
+
 static void runAllTests(void) {
   UNITY_BEGIN();
   RUN_TEST(test_rng_deterministic_and_in_range);
@@ -181,6 +210,8 @@ static void runAllTests(void) {
   RUN_TEST(test_step_rolls_ball_and_ticks_clock);
   RUN_TEST(test_step_flips_to_game_over_at_zero);
   RUN_TEST(test_step_is_noop_after_game_over);
+  RUN_TEST(test_dots_never_spawn_on_holes);
+  RUN_TEST(test_eaten_dot_respawns_off_holes);
   UNITY_END();
 }
 

@@ -50,6 +50,28 @@ static Vec2 placeClear(GameState& s, const Config& cfg, Vec2 avoid, float minDis
   return p;
 }
 
+// Place a dot clear of the ball AND every hole, so a spawned dot is always
+// reachable without being swallowed. Falls back to the centre (always hole-free,
+// since reset() keeps holes clear of the spawn centre) if no spot is found.
+static Vec2 placeDot(GameState& s, const Config& cfg) {
+  float minBall = cfg.ballR + cfg.dotR + 4.0f;
+  float minHole = cfg.holeR + cfg.ballR + cfg.dotR;
+  int nh = cfg.numHoles < MAX_HOLES ? cfg.numHoles : MAX_HOLES;
+  for (int t = 0; t < 24; ++t) {
+    Vec2 p{ rngRange(s.rng, cfg.ballR, cfg.width  - cfg.ballR),
+            rngRange(s.rng, cfg.ballR, cfg.height - cfg.ballR) };
+    float dxb = p.x - s.ball.pos.x, dyb = p.y - s.ball.pos.y;
+    if (dxb*dxb + dyb*dyb < minBall*minBall) continue;
+    bool clear = true;
+    for (int i = 0; i < nh; ++i) {
+      float dx = p.x - s.holes[i].pos.x, dy = p.y - s.holes[i].pos.y;
+      if (dx*dx + dy*dy < minHole*minHole) { clear = false; break; }
+    }
+    if (clear) return p;
+  }
+  return Vec2{ cfg.width * 0.5f, cfg.height * 0.5f };
+}
+
 int eatDots(GameState& s, const Config& cfg) {
   int eaten = 0;
   float reach = cfg.ballR + cfg.dotR;
@@ -60,7 +82,7 @@ int eatDots(GameState& s, const Config& cfg) {
     float dy = s.dots[i].pos.y - s.ball.pos.y;
     if (dx*dx + dy*dy <= reach*reach) {
       s.score += 1;
-      s.dots[i].pos    = placeClear(s, cfg, s.ball.pos, cfg.ballR + cfg.dotR + 4.0f);
+      s.dots[i].pos    = placeDot(s, cfg);
       s.dots[i].active = true;
       ++eaten;
     }
@@ -107,7 +129,7 @@ void reset(GameState& s, const Config& cfg, uint32_t seed) {
     s.holes[i].pos = placeClear(s, cfg, s.ball.pos, cfg.holeR + cfg.ballR * 4.0f);
   int nd = cfg.numDots < MAX_DOTS ? cfg.numDots : MAX_DOTS;
   for (int i = 0; i < nd; ++i) {
-    s.dots[i].pos    = placeClear(s, cfg, s.ball.pos, cfg.ballR + cfg.dotR + 4.0f);
+    s.dots[i].pos    = placeDot(s, cfg);
     s.dots[i].active = true;
   }
 }
