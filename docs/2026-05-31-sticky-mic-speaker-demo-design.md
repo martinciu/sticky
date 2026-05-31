@@ -112,10 +112,11 @@ Responsibilities, each kept small:
   Each carries the "mic and speaker can't run at once on the shared ES8311"
   comment. Every state transition that changes the audio direction goes through
   one of these, so the two are never active simultaneously.
-- **Buffers** — a 2 s record buffer in PSRAM
-  (`heap_caps_malloc(REC_SAMPLES * sizeof(int16_t), MALLOC_CAP_SPIRAM)`),
-  a small static VU block buffer (256 samples), and one full-screen `M5Canvas`
-  sprite reused every frame.
+- **Buffers** — a 2 s record buffer in **internal DMA-capable RAM**
+  (`heap_caps_malloc(REC_SAMPLES * sizeof(int16_t), MALLOC_CAP_8BIT)` — the I2S
+  DMA requires internal RAM, and 64 KB fits easily; PSRAM is the wrong heap here
+  and isn't enabled in this build — see Findings), a small static VU block buffer
+  (256 samples), and one full-screen `M5Canvas` sprite reused every frame.
 - **Render** — draw the whole frame into the sprite, then `pushSprite(0, 0)`
   (the repo's flicker-free convention).
 - **Loop** — non-blocking, `millis()`-paced; the state machine below.
@@ -162,7 +163,7 @@ keep rendering rather than stalling on `delay()`.
 
 | Buffer | Size | Where |
 |---|---|---|
-| Record buffer | 2 s × 16 kHz × int16 mono = **~64 KB** | PSRAM (`MALLOC_CAP_SPIRAM`) |
+| Record buffer | 2 s × 16 kHz × int16 mono = **~64 KB** | internal DMA RAM (`MALLOC_CAP_8BIT`) |
 | VU block | 256 samples (~16 ms @ 16 kHz) | static array |
 | Frame sprite | 240 × 135 × 16bpp ≈ 64 KB | as in existing rungs |
 
@@ -171,8 +172,9 @@ Sample format: 16-bit signed mono at 16 kHz (M5Unified's mic default; matches
 
 ## 7. Error handling
 
-- **Record-buffer alloc fails** (PSRAM exhausted) → log to serial, show an error
-  line, and disable the record/playback path; VU and tone still work. Never crash.
+- **Record-buffer alloc fails** (internal RAM exhausted) → log to serial, show an
+  error line (`A: --`), and disable the record/playback path; VU and tone still
+  work. Never crash.
 - **`M5.Mic.begin()` / `M5.Speaker.begin()` returns false** → log it, show a
   status glyph, degrade gracefully (UI never blanks).
 - **Codec safety** — the `enter*` helpers always `end()` the other device before
@@ -212,6 +214,29 @@ variable record length, wake-on-sound.
   (`floorDb`/`ceilDb`) empirically once flashed.
 - Verify the audible click on codec handoff is acceptable; if jarring, consider a
   brief mute/ramp (noted as a possible polish, out of v1 scope).
+
+## Findings (during implementation)
+
+- **Record buffer must be internal DMA RAM, not PSRAM.** The first on-device run
+  printed `ERROR: record buffer alloc failed (PSRAM)` — `ps_malloc()` returned
+  null, so BtnA (gated on `recBufOk`) did nothing. Root cause: the I2S DMA needs
+  a DMA-capable internal-RAM buffer, and PSRAM isn't initialised in this build
+  (`platformio.ini` sets `memory_type=qio_opi` but no `-DBOARD_HAS_PSRAM`). Fixed
+  by allocating with `MALLOC_CAP_8BIT`, matching every M5Unified audio example.
+- **PSRAM is not enabled project-wide (to confirm).** A boot diagnostic now prints
+  `ESP.getPsramSize()`/`getFreePsram()`. If it reports 0, anything later assuming
+  PSRAM (large sprites, TLS buffers in the widget rung) is silently falling back
+  to internal RAM. If PSRAM is wanted, the generic `esp32-s3-devkitc-1` board
+  likely needs `-DBOARD_HAS_PSRAM` (and possibly a proper board variant) on top
+  of `memory_type=qio_opi`. **Out of scope for this rung; flagged as follow-up.**
+- **Spurious boot I2S error fixed.** `E I2S: i2s_driver_uninstall: port 0 has not
+  installed` came from `M5.Speaker.end()` running in `setup()` before the speaker
+  was ever installed. `setup()` now calls `M5.Mic.begin()` directly; the runtime
+  `enterMic()`/`enterSpeaker()` toggles are unaffected (the speaker is installed
+  by then).
+- **Pending on-device confirmation (re-flash):** physical BtnA/BtnB → KEY1/KEY2
+  mapping; the `getPsramSize()` value; mic sensitivity / `dbToBar` window + `SPK_VOLUME`
+  tuning; audible click on the codec handoff.
 
 ### Sources
 

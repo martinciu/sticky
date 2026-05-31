@@ -75,12 +75,21 @@ void setup() {
   canvas.createSprite(M5.Display.width(), M5.Display.height());
   M5.Speaker.setVolume(SPK_VOLUME);
 
-  // 2 s record buffer in PSRAM (board has 8 MB OPI PSRAM).
-  recBuf = (int16_t*)ps_malloc(REC_SAMPLES * sizeof(int16_t));
+  // The I2S mic/speaker DMA needs a DMA-capable INTERNAL-RAM buffer, so allocate
+  // with MALLOC_CAP_8BIT -- not PSRAM, which isn't reliably DMA-accessible on the
+  // S3 and isn't even initialised in this build. 64 KB fits easily in internal
+  // SRAM. (Mirrors M5Unified's Basic/Microphone example.)
+  const size_t recBytes = REC_SAMPLES * sizeof(int16_t);
+  recBuf = (int16_t*)heap_caps_malloc(recBytes, MALLOC_CAP_8BIT);
   recBufOk = (recBuf != nullptr);
-  if (!recBufOk) Serial.println("ERROR: record buffer alloc failed (PSRAM)");
+  Serial.printf("PSRAM size=%u free=%u | internal free=%u | recBuf(%u B)=%s\n",
+                (unsigned)ESP.getPsramSize(), (unsigned)ESP.getFreePsram(),
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                (unsigned)recBytes, recBufOk ? "OK" : "FAILED");
 
-  enterMic();  // start in mic mode for the live VU
+  // Start the mic for the live VU. Don't call Speaker.end() here: at boot the
+  // speaker isn't installed yet, and ending it logs a spurious I2S error.
+  M5.Mic.begin();
   if (!M5.Mic.isEnabled()) Serial.println("ERROR: mic failed to start");
 }
 
