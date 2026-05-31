@@ -1,0 +1,37 @@
+name: CI
+
+# Host unit tests + a device compile on every PR and push to main.
+# (No board needed: `native` runs the pure lib/ tests, and mic_speaker_demo
+# compiles the device toolchain without requiring secrets.h.)
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Host unit tests
+        run: pio test -e native
+
+      - name: Build device rung (mic_speaker_demo)
+        run: pio run -e mic_speaker_demo
