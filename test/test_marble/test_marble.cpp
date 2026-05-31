@@ -119,6 +119,52 @@ void test_tick_clock_counts_down_and_clamps(void) {
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, s.timeLeft);            // clamps at 0
 }
 
+void test_reset_starts_playing_in_bounds(void) {
+  marble::Config cfg;                       // 4 dots, 3 holes
+  marble::GameState s;
+  marble::reset(s, cfg, 7u);
+  TEST_ASSERT_TRUE(s.phase == marble::Phase::Playing);
+  TEST_ASSERT_EQUAL_INT(0, s.score);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, cfg.roundSeconds, s.timeLeft);
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, cfg.width  * 0.5f, s.ball.pos.x);  // centred
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, cfg.height * 0.5f, s.ball.pos.y);
+  for (int i = 0; i < cfg.numDots; ++i) {
+    TEST_ASSERT_TRUE(s.dots[i].active);
+    TEST_ASSERT_TRUE(s.dots[i].pos.x >= 0.0f && s.dots[i].pos.x <= cfg.width);
+    TEST_ASSERT_TRUE(s.dots[i].pos.y >= 0.0f && s.dots[i].pos.y <= cfg.height);
+  }
+  for (int i = 0; i < cfg.numHoles; ++i) {
+    TEST_ASSERT_TRUE(s.holes[i].pos.x >= 0.0f && s.holes[i].pos.x <= cfg.width);
+    TEST_ASSERT_TRUE(s.holes[i].pos.y >= 0.0f && s.holes[i].pos.y <= cfg.height);
+  }
+}
+
+void test_step_rolls_ball_and_ticks_clock(void) {
+  marble::Config cfg; cfg.numDots = 0; cfg.numHoles = 0;
+  marble::GameState s; marble::reset(s, cfg, 1u);
+  float t0 = s.timeLeft, x0 = s.ball.pos.x;
+  marble::step(s, cfg, marble::Vec2{0.5f, 0.0f}, 0.1f);
+  TEST_ASSERT_TRUE(s.ball.pos.x > x0);   // rolled toward the tilt
+  TEST_ASSERT_TRUE(s.timeLeft < t0);     // clock advanced
+}
+
+void test_step_flips_to_game_over_at_zero(void) {
+  marble::Config cfg; cfg.numDots = 0; cfg.numHoles = 0; cfg.roundSeconds = 0.2f;
+  marble::GameState s; marble::reset(s, cfg, 1u);
+  marble::step(s, cfg, marble::Vec2{0.0f, 0.0f}, 0.5f);  // overshoot the clock
+  TEST_ASSERT_TRUE(s.phase == marble::Phase::GameOver);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, s.timeLeft);
+}
+
+void test_step_is_noop_after_game_over(void) {
+  marble::Config cfg;
+  marble::GameState s; marble::reset(s, cfg, 1u);
+  s.phase = marble::Phase::GameOver;
+  float x = s.ball.pos.x;
+  marble::step(s, cfg, marble::Vec2{1.0f, 0.0f}, 0.1f);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, x, s.ball.pos.x);   // frozen
+}
+
 static void runAllTests(void) {
   UNITY_BEGIN();
   RUN_TEST(test_rng_deterministic_and_in_range);
@@ -131,6 +177,10 @@ static void runAllTests(void) {
   RUN_TEST(test_hole_penalty_resets_ball_and_flashes);
   RUN_TEST(test_hole_penalty_clamps_time_at_zero);
   RUN_TEST(test_tick_clock_counts_down_and_clamps);
+  RUN_TEST(test_reset_starts_playing_in_bounds);
+  RUN_TEST(test_step_rolls_ball_and_ticks_clock);
+  RUN_TEST(test_step_flips_to_game_over_at_zero);
+  RUN_TEST(test_step_is_noop_after_game_over);
   UNITY_END();
 }
 

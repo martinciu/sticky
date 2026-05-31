@@ -91,4 +91,39 @@ void tickClock(GameState& s, float dt) {
   if (s.timeLeft < 0.0f) s.timeLeft = 0.0f;
 }
 
+void reset(GameState& s, const Config& cfg, uint32_t seed) {
+  s.rng       = seed ? seed : 1u;
+  s.phase     = Phase::Playing;
+  s.score     = 0;
+  s.timeLeft  = cfg.roundSeconds;
+  s.holeFlash = 0.0f;
+  s.rollAngle = 0.0f;
+  s.ball.pos  = { cfg.width * 0.5f, cfg.height * 0.5f };
+  s.ball.vel  = { 0.0f, 0.0f };
+  for (int i = 0; i < MAX_DOTS;  ++i) s.dots[i].active = false;
+  // Holes well clear of the centre (where the ball spawns), then dots clear too.
+  int nh = cfg.numHoles < MAX_HOLES ? cfg.numHoles : MAX_HOLES;
+  for (int i = 0; i < nh; ++i)
+    s.holes[i].pos = placeClear(s, cfg, s.ball.pos, cfg.holeR + cfg.ballR * 4.0f);
+  int nd = cfg.numDots < MAX_DOTS ? cfg.numDots : MAX_DOTS;
+  for (int i = 0; i < nd; ++i) {
+    s.dots[i].pos    = placeClear(s, cfg, s.ball.pos, cfg.ballR + cfg.dotR + 4.0f);
+    s.dots[i].active = true;
+  }
+}
+
+void step(GameState& s, const Config& cfg, Vec2 tilt, float dt) {
+  if (s.phase != Phase::Playing) return;
+  integrate(s.ball, tilt, cfg, dt);
+  bounceWalls(s.ball, cfg);
+  eatDots(s, cfg);
+  applyHoles(s, cfg);
+  tickClock(s, dt);
+  // Accumulate roll for the spin animation: angle = distance / radius.
+  float speed = std::sqrt(s.ball.vel.x * s.ball.vel.x + s.ball.vel.y * s.ball.vel.y);
+  if (cfg.ballR > 0.0f) s.rollAngle += speed * dt / cfg.ballR;
+  if (s.holeFlash > 0.0f) { s.holeFlash -= dt; if (s.holeFlash < 0.0f) s.holeFlash = 0.0f; }
+  if (s.timeLeft <= 0.0f) s.phase = Phase::GameOver;
+}
+
 }  // namespace marble
