@@ -112,11 +112,12 @@ Responsibilities, each kept small:
   Each carries the "mic and speaker can't run at once on the shared ES8311"
   comment. Every state transition that changes the audio direction goes through
   one of these, so the two are never active simultaneously.
-- **Buffers** — a 2 s record buffer in **internal DMA-capable RAM**
-  (`heap_caps_malloc(REC_SAMPLES * sizeof(int16_t), MALLOC_CAP_8BIT)` — the I2S
-  DMA requires internal RAM, and 64 KB fits easily; PSRAM is the wrong heap here
-  and isn't enabled in this build — see Findings), a small static VU block buffer
-  (256 samples), and one full-screen `M5Canvas` sprite reused every frame.
+- **Buffers** — a record buffer in **internal DMA-capable RAM**
+  (`heap_caps_malloc(bytes, MALLOC_CAP_8BIT)` — the I2S DMA requires internal RAM;
+  PSRAM is the wrong heap here and isn't enabled in this build — see Findings),
+  **sized at runtime** to the free internal RAM minus a safety margin and capped
+  at `MAX_REC_SECONDS`. A small static VU block buffer (256 samples) and one
+  full-screen `M5Canvas` sprite reused every frame.
 - **Render** — draw the whole frame into the sprite, then `pushSprite(0, 0)`
   (the repo's flicker-free convention).
 - **Loop** — non-blocking, `millis()`-paced; the state machine below.
@@ -163,12 +164,13 @@ keep rendering rather than stalling on `delay()`.
 
 | Buffer | Size | Where |
 |---|---|---|
-| Record buffer | 2 s × 16 kHz × int16 mono = **~64 KB** | internal DMA RAM (`MALLOC_CAP_8BIT`) |
-| VU block | 256 samples (~16 ms @ 16 kHz) | static array |
+| Record buffer | runtime-sized: `min(free − margin, MAX_REC_SECONDS)`; **16 KB/s @ 8 kHz** | internal DMA RAM (`MALLOC_CAP_8BIT`) |
+| VU block | 256 samples (~32 ms @ 8 kHz) | static array |
 | Frame sprite | 240 × 135 × 16bpp ≈ 64 KB | as in existing rungs |
 
-Sample format: 16-bit signed mono at 16 kHz (M5Unified's mic default; matches
-`Basic/Microphone`).
+Sample format: 16-bit signed mono at **8 kHz** (voice-grade; halves the
+per-second cost vs 16 kHz, so clips run ~2× longer). Both capture and playback
+use the same `SAMPLE_RATE`, so playback pitch stays correct.
 
 ## 7. Error handling
 
@@ -234,6 +236,13 @@ variable record length, wake-on-sound.
   was ever installed. `setup()` now calls `M5.Mic.begin()` directly; the runtime
   `enterMic()`/`enterSpeaker()` toggles are unaffected (the speaker is installed
   by then).
+- **Recording quality / length.** Dropped capture to **8 kHz / 16-bit mono**
+  (voice-grade; ~4 kHz audio bandwidth) to halve the per-second byte cost vs the
+  original 16 kHz, and made the buffer **runtime-sized** to free internal RAM
+  (minus a 96 KB margin, capped at `MAX_REC_SECONDS = 20 s`) instead of a fixed
+  2 s. The boot diagnostic reports the actual seconds obtained. Internal DMA RAM
+  is the ceiling; for much longer clips (minutes) the path is enabling PSRAM +
+  chunked streaming capture — a future-rung change, not a tweak.
 - **Pending on-device confirmation (re-flash):** physical BtnA/BtnB → KEY1/KEY2
   mapping; the `getPsramSize()` value; mic sensitivity / `dbToBar` window + `SPK_VOLUME`
   tuning; audible click on the codec handoff.
