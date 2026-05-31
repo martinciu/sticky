@@ -38,7 +38,8 @@ pio device list                           # find the /dev/cu.usbmodem… port
 
 `r1_hello` → `r2_screen` → `r3_buttons` → `r4_wifi` → `r5_clock` → `r6_weather`
 → `widget` (the assembled clock+weather gadget), plus `flicker_demo` (sprite vs
-direct-draw comparison), `r8_lvgl` / `r9_lvgl_ui` (LVGL experiments),
+direct-draw comparison), `font_demo` (font catalog with spring transitions +
+ping-pong scroll), `r8_lvgl` / `r9_lvgl_ui` (LVGL experiments),
 `mic_speaker_demo` (ES8311 mic + speaker), `marble_demo` (BMI270 tilt game with
 8-bit chiptune audio), and `native` (host tests). A simple rung is a single
 `src/<env>/main.cpp`; richer rungs (`mic_speaker_demo`, `marble_demo`) split into

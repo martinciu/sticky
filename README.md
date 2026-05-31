@@ -44,6 +44,7 @@ Build/flash any one with `-e <env>`.
 | `r6_weather` | HTTPS GET + JSON → struct | Real temp / conditions |
 | `widget` | State machine, refresh timing, layout | Assembled clock + weather |
 | `flicker_demo` | Sprite vs direct-draw comparison | Side-by-side flicker test |
+| `font_demo` | M5GFX font catalog + sprite spring/scroll animation | Browse 15 Latin typefaces (BtnA/BtnB) |
 | `r8_lvgl` / `r9_lvgl_ui` | LVGL on M5GFX + 2-button encoder nav | LVGL widgets |
 | `mic_speaker_demo` | ES8311 mic + speaker | VU meter, push-to-talk record/playback, tone |
 | `marble_demo` | BMI270 IMU tilt game + 8-bit chiptune audio | Tilt a rolling marble: collect dots, dodge holes, beat the 60 s clock |
