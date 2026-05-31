@@ -1,4 +1,5 @@
 #include "board_view.h"
+#include <cmath>  // sinf/cosf for the rolling-spin animation
 
 // The board area is drawn below a small HUD strip. These origins plus
 // cfg.width/height must keep the board on-screen (240x135 landscape).
@@ -52,11 +53,17 @@ void BoardView::render(const marble::GameState& s, const marble::Config& cfg, in
                        BOARD_Y + (int)s.dots[i].pos.y, (int)cfg.dotR, TFT_GREENYELLOW);
   }
 
-  // Ball + static specular highlight.
+  // Ball with procedural spin: a fixed specular highlight (light from top-left)
+  // plus a surface spot that orbits at the accumulated rollAngle, so the ball
+  // visibly rotates faster the faster it moves.
   int bx = BOARD_X + (int)s.ball.pos.x;
   int by = BOARD_Y + (int)s.ball.pos.y;
   canvas_.fillCircle(bx, by, (int)cfg.ballR, TFT_WHITE);
-  canvas_.fillCircle(bx - 2, by - 2, 2, TFT_LIGHTGREY);
+  float orbit = cfg.ballR * 0.55f;
+  int spx = bx + (int)(orbit * cosf(s.rollAngle));
+  int spy = by + (int)(orbit * sinf(s.rollAngle));
+  canvas_.fillCircle(spx, spy, 2, TFT_NAVY);            // rolling surface spot
+  canvas_.fillCircle(bx - 2, by - 2, 2, TFT_LIGHTGREY); // fixed highlight
 
   // Game-over overlay.
   if (s.phase == marble::Phase::GameOver) {
