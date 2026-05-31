@@ -1,5 +1,5 @@
 #include "board_view.h"
-#include <cmath>  // sinf/cosf for the rolling-spin animation
+#include <cmath> // sinf/cosf for the rolling-spin animation
 
 // The board area is drawn below a small HUD strip. These origins plus
 // cfg.width/height must keep the board on-screen (240x135 landscape).
@@ -11,24 +11,31 @@ void BoardView::begin() {
 }
 
 // Draw a recessed hole: a light-grey rim fading to a black centre (radial
-// gradient), a crisp dark lip outline, and a small top-left glint -- so it reads
-// as a pit you can fall into rather than a flat dark disc.
-static void drawHole(M5Canvas& c, int hx, int hy, int hr) {
+// gradient), a crisp dark lip outline, and a small top-left glint -- so it
+// reads as a pit you can fall into rather than a flat dark disc.
+// Draw a recessed hole as a smooth gradient funnel with motion parallax. Many
+// concentric rings fade from a lit rim to a small near-black core (t*t falloff,
+// so the dark centre stays small); each deeper ring is shifted further toward
+// (ox, oy) so the shaft leans with the tilt. The outermost ring stays centred on
+// the opening, so the dark can never spill past the rim however far you tilt.
+static void drawHole(M5Canvas &c, int hx, int hy, int hr, int ox, int oy) {
   for (int r = hr; r >= 1; --r) {
-    uint8_t v = (uint8_t)(18 + 64 * r / hr);   // rim ~82, centre ~18
-    c.fillCircle(hx, hy, r, c.color565(v, v, v));
+    float t = (float)r / hr;            // 1 at rim .. ~0 at centre
+    uint8_t v = (uint8_t)(100 * t * t); // lit rim -> small black core
+    int sx = (int)(ox * (1.0f - t));    // deeper rings lean toward the tilt
+    int sy = (int)(oy * (1.0f - t));
+    c.fillCircle(hx + sx, hy + sy, r, c.color565(v, v, v));
   }
-  c.fillCircle(hx, hy, hr / 3, TFT_BLACK);                 // deep centre
-  c.drawCircle(hx, hy, hr, c.color565(8, 8, 10));          // crisp lip
-  c.fillCircle(hx - hr / 3, hy - hr / 3, 1, c.color565(150, 150, 160));  // glint
+  c.drawCircle(hx, hy, hr, c.color565(14, 16, 22)); // crisp opening edge
 }
 
-void BoardView::render(const marble::GameState& s, const marble::Config& cfg, int best) {
-  const uint16_t BOARD_COLOR = canvas_.color565(36, 44, 58);   // slate tray
+void BoardView::render(const marble::GameState &s, const marble::Config &cfg,
+                       int best, marble::Vec2 view) {
+  const uint16_t BOARD_COLOR = canvas_.color565(36, 44, 58); // slate tray
   const uint16_t BEVEL_LIGHT = canvas_.color565(90, 100, 122);
-  const uint16_t BEVEL_DARK  = canvas_.color565(12, 16, 24);
-  const uint16_t DOT_COLOR   = canvas_.color565(255, 205, 60); // gold coin
-  const uint16_t DOT_GLINT   = canvas_.color565(255, 245, 205);
+  const uint16_t BEVEL_DARK = canvas_.color565(12, 16, 24);
+  const uint16_t DOT_COLOR = canvas_.color565(255, 205, 60); // gold coin
+  const uint16_t DOT_GLINT = canvas_.color565(255, 245, 205);
 
   canvas_.fillSprite(TFT_BLACK);
 
@@ -66,15 +73,28 @@ void BoardView::render(const marble::GameState& s, const marble::Config& cfg, in
   canvas_.drawFastHLine(BOARD_X - 1, BOARD_Y + H, W + 2, sha);
   canvas_.drawFastVLine(BOARD_X + W, BOARD_Y - 1, H + 2, sha);
 
-  // Holes (recessed, with depth).
+  // Holes (recessed, with motion parallax). The whole board tilts uniformly, so
+  // every funnel leans by the same tilt-driven offset -- that lean is the depth
+  // cue. VIEW_SIGN flips direction; PARALLAX scales it; maxoff caps the lean.
+  const float VIEW_SIGN = 1.0f;
+  const float PARALLAX = cfg.holeR * 1.6f;  // px of lean per g of tilt
+  const int hr = (int)cfg.holeR;
+  const int maxoff = (hr * 6) / 10;         // cap so the funnel stays sensible
+  int ox = (int)(VIEW_SIGN * view.x * PARALLAX);
+  int oy = (int)(VIEW_SIGN * view.y * PARALLAX);
+  if (ox > maxoff) ox = maxoff;
+  if (ox < -maxoff) ox = -maxoff;
+  if (oy > maxoff) oy = maxoff;
+  if (oy < -maxoff) oy = -maxoff;
   for (int i = 0; i < cfg.numHoles && i < marble::MAX_HOLES; ++i) {
     drawHole(canvas_, BOARD_X + (int)s.holes[i].pos.x,
-             BOARD_Y + (int)s.holes[i].pos.y, (int)cfg.holeR);
+             BOARD_Y + (int)s.holes[i].pos.y, hr, ox, oy);
   }
 
   // Dots: gold coins with a glint.
   for (int i = 0; i < cfg.numDots && i < marble::MAX_DOTS; ++i) {
-    if (!s.dots[i].active) continue;
+    if (!s.dots[i].active)
+      continue;
     int dx = BOARD_X + (int)s.dots[i].pos.x;
     int dy = BOARD_Y + (int)s.dots[i].pos.y;
     canvas_.fillCircle(dx, dy, (int)cfg.dotR, DOT_COLOR);
@@ -96,7 +116,7 @@ void BoardView::render(const marble::GameState& s, const marble::Config& cfg, in
   // Game-over overlay on a rounded panel so the text reads over the board.
   if (s.phase == marble::Phase::GameOver) {
     int pw = 150, ph = 66;
-    int px = (M5.Display.width()  - pw) / 2;
+    int px = (M5.Display.width() - pw) / 2;
     int py = (M5.Display.height() - ph) / 2;
     canvas_.fillRoundRect(px, py, pw, ph, 5, TFT_BLACK);
     canvas_.drawRoundRect(px, py, pw, ph, 5, BEVEL_LIGHT);

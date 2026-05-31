@@ -8,7 +8,8 @@
 class BoardView {
  public:
   void begin();  // create the full-screen sprite
-  void render(const marble::GameState& s, const marble::Config& cfg, int best);
+  void render(const marble::GameState& s, const marble::Config& cfg, int best,
+              marble::Vec2 view);
  private:
   M5Canvas canvas_{&M5.Display};
 };

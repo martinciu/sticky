@@ -24,6 +24,9 @@ void App::loop() {
   lastMs_ = now;
   if (dt > 0.05f) dt = 0.05f;  // clamp after a hiccup so the ball can't tunnel
 
+  // Read tilt once per frame: it drives the physics AND the hole parallax.
+  marble::Vec2 view = imu_.read();
+
   switch (state_.phase) {
     case marble::Phase::Calibrate:
       if (M5.BtnA.wasPressed()) {
@@ -34,8 +37,7 @@ void App::loop() {
       break;
 
     case marble::Phase::Playing: {
-      marble::Vec2 tilt = imu_.read();
-      marble::step(state_, cfg_, tilt, dt);
+      marble::step(state_, cfg_, view, dt);
       if (state_.phase == marble::Phase::GameOver) {       // step flipped it
         if (state_.score > best_) best_ = state_.score;
         Serial.printf("GAME OVER score=%d best=%d\n", state_.score, best_);
@@ -54,6 +56,6 @@ void App::loop() {
       break;
   }
 
-  view_.render(state_, cfg_, best_);
+  view_.render(state_, cfg_, best_, view);
   delay(5);
 }
