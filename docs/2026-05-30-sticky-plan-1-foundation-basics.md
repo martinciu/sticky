@@ -29,8 +29,8 @@
 ## Task 1: Toolchain + repo scaffold
 
 **Files:**
-- Create: `/Users/martinciu/code/sticky/.gitignore`
-- Create: `/Users/martinciu/code/sticky/platformio.ini`
+- Create: `.gitignore`
+- Create: `platformio.ini`
 
 - [ ] **Step 1: Confirm PlatformIO CLI is installed (install via uv if not)**
 
@@ -51,7 +51,7 @@ Expected after install: version prints successfully.
 
 Run:
 ```bash
-cd /Users/martinciu/code/sticky
+cd sticky
 git init
 git checkout -b foundation-basics
 ```
@@ -120,7 +120,7 @@ git commit -m "chore: scaffold PlatformIO project for StickS3"
 ## Task 2: Rung 1 — Hello, hardware (the first flash)
 
 **Files:**
-- Create: `/Users/martinciu/code/sticky/src/r1_hello/main.cpp`
+- Create: `src/r1_hello/main.cpp`
 
 This is the milestone that proves the *entire* loop: board config, library, compile, flash over native USB, and serial monitor.
 
@@ -193,7 +193,7 @@ git commit -m "feat(r1): hello world on LCD + serial"
 ## Task 3: Rung 2 — Screen & graphics (text, color, coordinates, sprites)
 
 **Files:**
-- Create: `/Users/martinciu/code/sticky/src/r2_screen/main.cpp`
+- Create: `src/r2_screen/main.cpp`
 
 Teaches the 240×135 coordinate system, text sizing/color, primitive shapes, and the **sprite** (off-screen canvas) technique that gives flicker-free animation — the foundation for the clock face later.
 
@@ -291,7 +291,7 @@ git commit -m "feat(r2): screen graphics + flicker-free sprite animation"
 ## Task 4: Rung 3 — Buttons & battery
 
 **Files:**
-- Create: `/Users/martinciu/code/sticky/src/r3_buttons/main.cpp`
+- Create: `src/r3_buttons/main.cpp`
 
 Teaches the `M5.update()` → `M5.BtnX.wasPressed()` input pattern and reading battery state. Also **empirically resolves two open items** from the spec: which physical button maps to `BtnA` vs `BtnB`, and whether `M5.Power.getBatteryLevel()` returns a real value on this board.
 
