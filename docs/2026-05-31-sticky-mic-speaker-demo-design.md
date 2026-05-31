@@ -164,13 +164,14 @@ keep rendering rather than stalling on `delay()`.
 
 | Buffer | Size | Where |
 |---|---|---|
-| Record buffer | runtime-sized: `min(free − margin, MAX_REC_SECONDS)`; **16 KB/s @ 8 kHz** | internal DMA RAM (`MALLOC_CAP_8BIT`) |
-| VU block | 256 samples (~32 ms @ 8 kHz) | static array |
+| Record buffer | runtime-sized: `min(free − margin, MAX_REC_SECONDS)`; **32 KB/s @ 16 kHz** | internal DMA RAM (`MALLOC_CAP_8BIT`) |
+| VU block | 256 samples (~16 ms @ 16 kHz) | static array |
 | Frame sprite | 240 × 135 × 16bpp ≈ 64 KB | as in existing rungs |
 
-Sample format: 16-bit signed mono at **8 kHz** (voice-grade; halves the
-per-second cost vs 16 kHz, so clips run ~2× longer). Both capture and playback
-use the same `SAMPLE_RATE`, so playback pitch stays correct.
+Sample format: 16-bit signed mono at **16 kHz** (crisper than 8 kHz, ~8 kHz audio
+bandwidth, at the cost of ~half the max clip length). Both capture and playback
+use the same `SAMPLE_RATE`, so playback pitch stays correct. Speaker at max
+volume (`SPK_VOLUME = 255`).
 
 ## 7. Error handling
 
@@ -236,13 +237,14 @@ variable record length, wake-on-sound.
   was ever installed. `setup()` now calls `M5.Mic.begin()` directly; the runtime
   `enterMic()`/`enterSpeaker()` toggles are unaffected (the speaker is installed
   by then).
-- **Recording quality / length.** Dropped capture to **8 kHz / 16-bit mono**
-  (voice-grade; ~4 kHz audio bandwidth) to halve the per-second byte cost vs the
-  original 16 kHz, and made the buffer **runtime-sized** to free internal RAM
-  (minus a 96 KB margin, capped at `MAX_REC_SECONDS = 20 s`) instead of a fixed
-  2 s. The boot diagnostic reports the actual seconds obtained. Internal DMA RAM
-  is the ceiling; for much longer clips (minutes) the path is enabling PSRAM +
-  chunked streaming capture — a future-rung change, not a tweak.
+- **Recording quality / length.** Settled on **16 kHz / 16-bit mono** (crisper,
+  ~8 kHz bandwidth) with the speaker at **max volume** (`SPK_VOLUME = 255`). The
+  buffer is **runtime-sized** to free internal RAM (minus a 96 KB margin, capped
+  at `MAX_REC_SECONDS = 20 s`) instead of a fixed 2 s, so it grabs the longest
+  clip the board can safely hold (~32 KB/s at 16 kHz); the boot diagnostic reports
+  the actual seconds. (8 kHz was tried for ~2× length but 16 kHz was preferred for
+  fidelity.) Internal DMA RAM is the ceiling; for much longer clips (minutes) the
+  path is enabling PSRAM + chunked streaming capture — a future-rung change.
 - **Pending on-device confirmation (re-flash):** physical BtnA/BtnB → KEY1/KEY2
   mapping; the `getPsramSize()` value; mic sensitivity / `dbToBar` window + `SPK_VOLUME`
   tuning; audible click on the codec handoff.

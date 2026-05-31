@@ -1,9 +1,9 @@
 #include <M5Unified.h>
 #include "audio.h"
 
-static constexpr uint32_t SAMPLE_RATE = 8000;   // 8 kHz mono (voice-grade; 2x longer than 16 kHz)
-static constexpr size_t   VU_BLOCK    = 256;    // ~32 ms per VU read at 8 kHz
-static constexpr uint8_t  SPK_VOLUME  = 200;    // 0..255
+static constexpr uint32_t SAMPLE_RATE = 16000;  // 16 kHz mono (crisper; ~half the max clip length of 8 kHz)
+static constexpr size_t   VU_BLOCK    = 256;    // ~16 ms per VU read at 16 kHz
+static constexpr uint8_t  SPK_VOLUME  = 255;    // max (0..255)
 
 // The record buffer is sized at runtime to the free internal DMA RAM (see
 // setup), capped at MAX_REC_SECONDS so we never grab everything. int16 mono =>
