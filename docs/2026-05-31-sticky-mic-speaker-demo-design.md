@@ -138,9 +138,12 @@ BOOT ─▶ IDLE_VU ──(BtnA)──▶ RECORDING ──(buffer full)──▶
   `M5.Mic.record(block, N, 16000)`, runs `audio::computeLevel(block, N)`, and
   draws a colored VU bar (green → yellow → red zones) with the numeric level and
   a decaying peak-hold tick. `BtnA` → RECORDING; `BtnB` → TONE.
-- **RECORDING** — appends blocks into the PSRAM buffer **chunk-by-chunk** so the
-  loop stays responsive; shows a "REC 1.3s" progress bar plus the live VU. When
-  the buffer is full → PLAYBACK.
+- **RECORDING** — issues a **single gap-free** `M5.Mic.record(buf, REC_SAMPLES,
+  16000)` into the PSRAM buffer and polls `M5.Mic.isRecording()` each loop
+  (non-blocking); shows a time-based "REC 1.3s" progress bar. The one `record()`
+  call owns the mic for the whole capture, so the live VU pauses during recording
+  and resumes in IDLE_VU — this avoids the inter-buffer clicks a chunked capture
+  would risk. When `isRecording()` returns 0 → PLAYBACK.
 - **PLAYBACK** — `enterSpeaker()`, then
   `M5.Speaker.playRaw(buf, REC_SAMPLES, 16000)`; poll `M5.Speaker.isPlaying()`
   each loop (non-blocking). When done → `enterMic()` → IDLE_VU. Shows "PLAY".
