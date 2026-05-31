@@ -285,6 +285,38 @@ rung), gyro-based control, sprite-sheet ball animation, difficulty ramp.
 - Confirm `M5.Imu.getAccel` units/orientation at rest (assumed ~1 g on one axis when
   flat, ~0 on the in-plane axes).
 
+## Findings (during implementation)
+
+- **BMI270 axis → screen mapping confirmed.** Raw accel **x → screen x** and
+  **y → screen y** (axes are *not* swapped). The X axis needed **inverting**
+  (`SCREEN_X_SIGN = -1.0f`); without it, tilting left rolled the ball right. Y was
+  correct as-is (`SCREEN_Y_SIGN = +1.0f`). Both directions match the tilt after
+  the flip. (Resolves design §1 / §11 axis-mapping open item.)
+- **Cross-compiler `Vec2` brace-init bug — caught only by the device build.** The
+  `native` test env compiles with `-std=gnu++17`, where a struct with default
+  member initializers is an aggregate, so `Vec2{x, y}` worked and all host tests
+  passed. The Arduino/Xtensa device toolchain compiles in an older C++ mode where
+  it is **not** an aggregate, so `Vec2{x, y}` failed to compile ("candidate
+  expects 0 arguments"). Fixed by giving `Vec2` explicit constructors
+  (`Vec2() = default; Vec2(float, float)`). Lesson: host-green ≠ device-green —
+  compile the device build, don't just run host tests.
+- **Dot-on-hole placement bug found in playtest.** The original `placeClear` only
+  avoided the ball, so dots sometimes spawned on/under a hole (uncollectable / a
+  free fall). Fixed with a dedicated `placeDot` that rejects candidates within
+  `holeR + ballR + dotR` of any hole, used by both `reset()` and `eatDots()`
+  respawn. Added host guards over 200/100 seeds (`test_dots_never_spawn_on_holes`,
+  `test_eaten_dot_respawns_off_holes`).
+- **Physics feel — defaults kept.** `gravity = 900`, `damping = 1.5/s`,
+  `restitution = 0.6` felt like a marble on the first tuning pass; left unchanged.
+- **Difficulty — defaults kept.** `numDots = 4`, `numHoles = 3`,
+  `holePenaltySec = 3`, `roundSeconds = 60` played well.
+- **Buttons.** `BtnA` (start / restart) and `BtnB` (re-calibrate level) behaved as
+  intended; physical KEY1/KEY2 correspondence matches the M5Unified default (and
+  the `mic_speaker_demo` finding).
+- **Rolling-spin stretch goal — shipped.** A navy surface spot orbiting at the
+  accumulated `rollAngle` (with a fixed specular highlight) reads convincingly as
+  rolling; spot radius 2 / orbit factor 0.55 looked right without tuning.
+
 ## Sources
 
 - M5Unified `Basic/Imu` example (`.pio/libdeps/*/M5Unified/examples/Basic/Imu/`).
