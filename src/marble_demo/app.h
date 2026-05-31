@@ -17,4 +17,7 @@ class App {
   marble::GameState state_;
   int               best_   = 0;
   uint32_t          lastMs_ = 0;
+  int               batt_       = -1;    // battery %, -1 if unknown
+  bool              charging_   = false;
+  uint32_t          lastBattMs_ = 0;
 };

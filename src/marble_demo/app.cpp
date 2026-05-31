@@ -27,6 +27,17 @@ void App::loop() {
   // Read tilt once per frame: it drives the physics AND the hole parallax.
   marble::Vec2 view = imu_.read();
 
+  // Poll the battery ~1 Hz so the on-screen readout works on battery power too
+  // (there is no serial monitor once USB is unplugged).
+  if (lastBattMs_ == 0 || now - lastBattMs_ >= 1000) {
+    lastBattMs_ = now;
+    batt_ = M5.Power.getBatteryLevel();
+    charging_ =
+        (M5.Power.isCharging() == m5::Power_Class::is_charging_t::is_charging);
+    Serial.printf("battery: level=%d%% volt=%dmV charging=%d\n", batt_,
+                  M5.Power.getBatteryVoltage(), (int)charging_);
+  }
+
   switch (state_.phase) {
     case marble::Phase::Calibrate:
       if (M5.BtnA.wasPressed()) {
@@ -56,6 +67,6 @@ void App::loop() {
       break;
   }
 
-  view_.render(state_, cfg_, best_, view);
+  view_.render(state_, cfg_, best_, view, batt_, charging_);
   delay(5);
 }

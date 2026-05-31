@@ -313,6 +313,14 @@ rung), gyro-based control, sprite-sheet ball animation, difficulty ramp.
 - **Buttons.** `BtnA` (start / restart) and `BtnB` (re-calibrate level) behaved as
   intended; physical KEY1/KEY2 correspondence matches the M5Unified default (and
   the `mic_speaker_demo` finding).
+- **Battery readout works via M5Unified — resolves the §10 open item.** The
+  StickS3's **M5PM1** PMIC *is* supported by `M5.Power.getBatteryLevel()` /
+  `getBatteryVoltage()` / `isCharging()` (PMIC type `pmic_m5pm1`); no separate
+  library is needed. An on-screen indicator was added (there is no serial monitor
+  on battery power). NB: a flat 250 mAh cell reads `0%` and the board powers off
+  the instant USB is removed — there's nothing to keep the rail alive — which
+  looks like a regression but is just an **empty battery**, not a firmware fault.
+  The M5PM1 charges the cell automatically whenever USB is connected.
 - **Rolling-spin stretch goal — shipped.** A navy surface spot orbiting at the
   accumulated `rollAngle` (with a fixed specular highlight) reads convincingly as
   rolling; spot radius 2 / orbit factor 0.55 looked right without tuning.

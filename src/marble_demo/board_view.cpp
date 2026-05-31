@@ -27,7 +27,7 @@ static void drawHole(M5Canvas &c, int hx, int hy, int hr, int ox, int oy) {
 }
 
 void BoardView::render(const marble::GameState &s, const marble::Config &cfg,
-                       int best, marble::Vec2 view) {
+                       int best, marble::Vec2 view, int batt, bool charging) {
   const uint16_t BOARD_COLOR = canvas_.color565(36, 44, 58); // slate tray
   const uint16_t BEVEL_LIGHT = canvas_.color565(90, 100, 122);
   const uint16_t BEVEL_DARK = canvas_.color565(12, 16, 24);
@@ -60,6 +60,19 @@ void BoardView::render(const marble::GameState &s, const marble::Config &cfg,
   canvas_.setTextColor(TFT_WHITE, TFT_BLACK);
   canvas_.setCursor(150, 4);
   canvas_.printf("S%d", s.score);
+
+  // Battery readout (visible on battery power, where there's no serial monitor).
+  canvas_.setTextSize(1);
+  uint16_t bc = charging      ? TFT_GREENYELLOW
+                : (batt < 0)  ? TFT_DARKGREY
+                : (batt < 20) ? TFT_RED
+                              : TFT_WHITE;
+  canvas_.setTextColor(bc, TFT_BLACK);
+  canvas_.setCursor(92, 9);
+  if (batt < 0)
+    canvas_.print(charging ? "CHG" : "BAT?");
+  else
+    canvas_.printf("%d%%%s", batt, charging ? "+" : "");
 
   // Board surface + raised bevel (light top-left, dark bottom-right). The bevel
   // flashes red briefly after a hole hit.
