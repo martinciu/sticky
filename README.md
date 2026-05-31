@@ -122,6 +122,10 @@ pio run -t compiledb     # regenerate compile_commands.json for clangd
 doxygen Doxyfile         # browseable HTML API docs for M5GFX/M5Unified
 ```
 
+## 📄 License
+
+[MIT](LICENSE) © Marcin Ciunelis
+
 ---
 
 *A personal learning project — built incrementally, one runnable rung at a time.*
