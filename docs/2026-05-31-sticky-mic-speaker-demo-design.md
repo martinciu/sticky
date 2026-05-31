@@ -140,16 +140,17 @@ BOOT ─▶ IDLE_VU ──(BtnA press)──▶ RECORDING ──(BtnA release / 
   `M5.Mic.record(block, N, SAMPLE_RATE)`, runs `audio::computeLevel(block, N)`, and
   draws a colored VU bar (green → yellow → red zones) with the numeric level and
   a decaying peak-hold tick. `BtnA` press → RECORDING; `BtnB` → TONE.
-- **RECORDING — push-to-talk.** On `BtnA` *press*, zero the buffer (so any
-  unfilled tail is silent) and issue a **single gap-free**
-  `M5.Mic.record(buf, recSamples, SAMPLE_RATE)` for up to the full buffer. Each
-  loop shows a "REC 1.3s / Xs" readout. Recording stops on **`BtnA` release**
-  (push-to-talk) or when the buffer fills (`isRecording() == 0`, the safety net).
-  The captured length is the full buffer if it filled, else a **time-based
-  estimate** (`elapsed_ms × SAMPLE_RATE / 1000`); the zeroed tail keeps any
-  over-estimate silent rather than popping. The single `record()` call owns the
-  mic, so the live VU pauses during a take and resumes in IDLE_VU. → PLAYBACK
-  (or back to IDLE_VU if the take was empty).
+- **RECORDING — push-to-talk, chunked.** On `BtnA` *press*, zero the buffer (so
+  any unfilled tail is silent) and arm RECORDING. Each loop keeps up to **two
+  small ~64 ms chunks** (`REC_CHUNK = 1024` samples) queued via
+  `M5.Mic.record(buf + recPos, REC_CHUNK, SAMPLE_RATE)`, advancing `recPos`; the
+  two-deep queue keeps the DMA fed so capture is gapless. Stops on **`BtnA`
+  release** — detected on the button *level* (`!isPressed()`), not the one-shot
+  `wasReleased()` edge — or when there's no room for another chunk (safety net).
+  Played length is exactly `recPos`. Small chunks are essential: the mic task
+  fills a record request *to completion* before re-checking its stop flag, so a
+  single multi-second request would make `Mic.end()` block for the whole
+  remaining capture (see Findings). → PLAYBACK (or IDLE_VU if the take was empty).
 - **PLAYBACK** — `enterSpeaker()`, then
   `M5.Speaker.playRaw(buf, captured, SAMPLE_RATE)`; poll `M5.Speaker.isPlaying()`
   each loop (non-blocking). When done → `enterMic()` → IDLE_VU. Shows "PLAY".
@@ -249,13 +250,20 @@ gain or volume UI, stereo capture, wake-on-sound.
   the actual seconds. (8 kHz was tried for ~2× length but 16 kHz was preferred for
   fidelity.) Internal DMA RAM is the ceiling; for much longer clips (minutes) the
   path is enabling PSRAM + chunked streaming capture — a future-rung change.
-- **Recording is push-to-talk.** Changed from a fixed-length auto-stop capture to
-  **hold-BtnA-to-record, release-to-play**. Implemented on the existing single
-  gap-free `record()` (sized to the full buffer): release calls `M5.Mic.end()`
-  (via `enterSpeaker()`) to abort, and the played length is a time-based estimate
-  of what was captured; the buffer is zeroed before each take so an over-estimate
-  is silent. Buffer-full is the safety-net stop. (A "second press to stop" toggle
-  is the easy alternative if hands-free long takes are ever wanted.)
+- **Recording is push-to-talk (hold BtnA), captured in small chunks.** Two
+  bugs surfaced and were fixed here:
+  1. **Release wasn't detected.** The one-shot `wasReleased()` edge didn't reliably
+     end a *held* take, so it ran to the buffer-full safety net. Switched to the
+     button *level* (`!isPressed()`), checked every loop — robust for "while held".
+  2. **`Mic.end()` blocked ~17 s.** The original design issued **one** big
+     `M5.Mic.record(buf, recSamples, …)` for up to 20 s. The mic task fills a
+     record request *to completion* before re-checking its stop flag, so
+     `Mic.end()` (via `enterSpeaker()`) blocked until the entire remaining buffer
+     was captured — measured `enterSpeaker=16974 ms` on a 2.95 s take. Rewrote
+     capture to **~64 ms chunks, 2 queued** (gapless): `Mic.end()` now waits only
+     for one tiny chunk (`enterSpeaker=34 ms`), played length is exactly `recPos`,
+     and the buffer is zeroed beforehand so any unfilled trailing chunk is silent.
+  (A "second press to stop" toggle is the easy alternative for hands-free takes.)
 - **Pending on-device confirmation (re-flash):** physical BtnA/BtnB → KEY1/KEY2
   mapping; the `getPsramSize()` value; mic sensitivity / `dbToBar` window + `SPK_VOLUME`
   tuning; audible click on the codec handoff.

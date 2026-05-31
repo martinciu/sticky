@@ -10,6 +10,11 @@ static constexpr uint8_t  SPK_VOLUME  = 255;    // max (0..255)
 // SAMPLE_RATE * 2 bytes per second.
 static constexpr float  MAX_REC_SECONDS = 20.0f;       // upper bound on clip length
 static constexpr size_t HEAP_MARGIN     = 96 * 1024;   // leave headroom for stack/runtime
+// Capture in small chunks (not one giant request): the mic task fills a record
+// request to completion before re-checking its stop flag, so a multi-second
+// request would make Mic.end() block for the whole thing. ~64 ms keeps release
+// responsive while staying gapless (we keep 2 queued).
+static constexpr size_t REC_CHUNK = 1024;              // samples per capture request (~64 ms @ 16 kHz)
 
 enum class State { IDLE_VU, RECORDING, PLAYBACK, TONE };
 static State state = State::IDLE_VU;
@@ -22,6 +27,7 @@ static float    recSeconds = 0.0f;      // recSamples / SAMPLE_RATE (for the pro
 static bool     recBufOk   = false;
 static uint32_t recStart   = 0;
 static float    recElapsed = 0.0f;      // seconds held so far (push-to-talk readout)
+static size_t   recPos     = 0;         // samples captured/queued so far
 
 static uint8_t  bar = 0;
 static uint8_t  peakHold = 0;
@@ -116,11 +122,12 @@ void loop() {
       sampleVu();
       drawFrame("VU", TFT_GREEN, -1);
       if (recBufOk && M5.BtnA.wasPressed()) {
-        // Push-to-talk: start a capture of up to the full buffer; we stop early
-        // on release (below). Zero it first so any unfilled tail plays as silence
-        // (heap_caps_malloc doesn't clear, and a short take leaves an old tail).
+        // Push-to-talk: arm RECORDING; the chunk loop (below) does the capture
+        // while BtnA is held. Zero the buffer first so any unfilled trailing
+        // chunk plays as silence (heap_caps_malloc doesn't clear, and a short
+        // take leaves an old tail).
         memset(recBuf, 0, recSamples * sizeof(int16_t));
-        M5.Mic.record(recBuf, recSamples, SAMPLE_RATE);
+        recPos = 0;
         recStart = millis();
         recElapsed = 0.0f;
         state = State::RECORDING;
@@ -135,30 +142,33 @@ void loop() {
       break;
 
     case State::RECORDING: {
-      uint32_t elapsed = millis() - recStart;
-      recElapsed = elapsed / 1000.0f;
-      int pct = (int)(elapsed * 100 / (uint32_t)(recSeconds * 1000));
+      // Keep up to 2 small chunks queued so the mic DMA never starves (gapless).
+      // recPos tracks samples committed; it runs at most ~2 chunks ahead of what
+      // is actually filled, and stays at real time after the initial lead.
+      while (M5.Mic.isRecording() < 2 && recPos + REC_CHUNK <= recSamples) {
+        M5.Mic.record(recBuf + recPos, REC_CHUNK, SAMPLE_RATE);
+        recPos += REC_CHUNK;
+      }
+      recElapsed = (millis() - recStart) / 1000.0f;
+      int pct = (recSamples > 0) ? (int)(recPos * 100 / recSamples) : 0;
       if (pct > 100) pct = 100;
       drawFrame("REC", TFT_RED, pct);
 
-      // Stop when BtnA is released (push-to-talk) or the buffer fills (safety
-      // net). The >100 ms guard avoids a start-up race where isRecording()
-      // reads 0 before the capture task has begun.
-      bool full     = (elapsed > 100 && M5.Mic.isRecording() == 0);
-      bool released = M5.BtnA.wasReleased();
+      // Stop the instant BtnA is no longer held (push-to-talk, level not edge) or
+      // when there's no room for another chunk (safety net).
+      bool full     = (recPos + REC_CHUNK > recSamples);
+      bool released = !M5.BtnA.isPressed();
       if (released || full) {
-        // Captured length: full buffer if it filled, else a time-based estimate
-        // (capture runs at SAMPLE_RATE). The zeroed tail keeps any over-estimate
-        // silent rather than popping.
-        size_t captured = full ? recSamples
-                               : (size_t)((uint64_t)elapsed * SAMPLE_RATE / 1000);
-        if (captured > recSamples) captured = recSamples;
-
-        enterSpeaker();  // Mic.end() also aborts the in-flight capture
+        uint32_t t0 = millis();
+        enterSpeaker();  // Mic.end() now only waits for the small in-flight chunk
+        uint32_t t1 = millis();
+        size_t captured = recPos;  // zeroed tail keeps any unfilled trailing chunk silent
         if (captured > 0) {
           M5.Speaker.playRaw(recBuf, captured, SAMPLE_RATE);
           state = State::PLAYBACK;
-          Serial.printf("PLAYBACK (%.1fs)\n", (float)captured / SAMPLE_RATE);
+          Serial.printf("STOP released=%d full=%d | enterSpeaker=%lums | play %.2fs\n",
+                        released, full, (unsigned long)(t1 - t0),
+                        (float)captured / SAMPLE_RATE);
         } else {
           enterMic();
           state = State::IDLE_VU;
