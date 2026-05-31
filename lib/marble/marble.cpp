@@ -37,4 +37,35 @@ bool bounceWalls(Ball& b, const Config& cfg) {
   return hit;
 }
 
+// Pick a board position at least minDist from `avoid`, within the wall margins.
+// Best-effort: gives up after a few tries and returns the last candidate.
+static Vec2 placeClear(GameState& s, const Config& cfg, Vec2 avoid, float minDist) {
+  Vec2 p{ cfg.width * 0.5f, cfg.height * 0.5f };
+  for (int t = 0; t < 16; ++t) {
+    p.x = rngRange(s.rng, cfg.ballR, cfg.width  - cfg.ballR);
+    p.y = rngRange(s.rng, cfg.ballR, cfg.height - cfg.ballR);
+    float dx = p.x - avoid.x, dy = p.y - avoid.y;
+    if (dx*dx + dy*dy >= minDist*minDist) break;
+  }
+  return p;
+}
+
+int eatDots(GameState& s, const Config& cfg) {
+  int eaten = 0;
+  float reach = cfg.ballR + cfg.dotR;
+  int n = cfg.numDots < MAX_DOTS ? cfg.numDots : MAX_DOTS;
+  for (int i = 0; i < n; ++i) {
+    if (!s.dots[i].active) continue;
+    float dx = s.dots[i].pos.x - s.ball.pos.x;
+    float dy = s.dots[i].pos.y - s.ball.pos.y;
+    if (dx*dx + dy*dy <= reach*reach) {
+      s.score += 1;
+      s.dots[i].pos    = placeClear(s, cfg, s.ball.pos, cfg.ballR + cfg.dotR + 4.0f);
+      s.dots[i].active = true;
+      ++eaten;
+    }
+  }
+  return eaten;
+}
+
 }  // namespace marble

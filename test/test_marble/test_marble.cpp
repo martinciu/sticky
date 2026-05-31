@@ -63,6 +63,30 @@ void test_bounce_none_in_centre(void) {
   TEST_ASSERT_FALSE(marble::bounceWalls(b, cfg));
 }
 
+void test_eat_dot_scores_and_respawns_clear(void) {
+  marble::Config cfg; cfg.numDots = 1;
+  marble::GameState s; s.rng = 42;
+  s.ball.pos = {50.0f, 50.0f};
+  s.dots[0]  = { {50.0f, 50.0f}, true };          // sitting on the ball
+  int eaten = marble::eatDots(s, cfg);
+  TEST_ASSERT_EQUAL_INT(1, eaten);
+  TEST_ASSERT_EQUAL_INT(1, s.score);
+  TEST_ASSERT_TRUE(s.dots[0].active);             // respawned, still active
+  TEST_ASSERT_TRUE(s.dots[0].pos.x >= 0.0f && s.dots[0].pos.x <= cfg.width);
+  TEST_ASSERT_TRUE(s.dots[0].pos.y >= 0.0f && s.dots[0].pos.y <= cfg.height);
+  float dx = s.dots[0].pos.x - s.ball.pos.x, dy = s.dots[0].pos.y - s.ball.pos.y;
+  TEST_ASSERT_TRUE(sqrtf(dx*dx + dy*dy) > cfg.ballR + cfg.dotR);  // not on the ball
+}
+
+void test_eat_dot_far_away_no_score(void) {
+  marble::Config cfg; cfg.numDots = 1;
+  marble::GameState s; s.rng = 1;
+  s.ball.pos = {10.0f, 10.0f};
+  s.dots[0]  = { {200.0f, 90.0f}, true };
+  TEST_ASSERT_EQUAL_INT(0, marble::eatDots(s, cfg));
+  TEST_ASSERT_EQUAL_INT(0, s.score);
+}
+
 static void runAllTests(void) {
   UNITY_BEGIN();
   RUN_TEST(test_rng_deterministic_and_in_range);
@@ -70,6 +94,8 @@ static void runAllTests(void) {
   RUN_TEST(test_integrate_damping_slows_ball);
   RUN_TEST(test_bounce_right_wall_reflects_and_clamps);
   RUN_TEST(test_bounce_none_in_centre);
+  RUN_TEST(test_eat_dot_scores_and_respawns_clear);
+  RUN_TEST(test_eat_dot_far_away_no_score);
   UNITY_END();
 }
 
