@@ -10,9 +10,6 @@ void BoardView::begin() {
   canvas_.createSprite(M5.Display.width(), M5.Display.height());
 }
 
-// Draw a recessed hole: a light-grey rim fading to a black centre (radial
-// gradient), a crisp dark lip outline, and a small top-left glint -- so it
-// reads as a pit you can fall into rather than a flat dark disc.
 // Draw a recessed hole as a smooth gradient funnel with motion parallax. Many
 // concentric rings fade from a lit rim to a small near-black core (t*t falloff,
 // so the dark centre stays small); each deeper ring is shifted further toward
@@ -38,15 +35,16 @@ void BoardView::render(const marble::GameState &s, const marble::Config &cfg,
   const uint16_t DOT_GLINT = canvas_.color565(255, 245, 205);
 
   canvas_.fillSprite(TFT_BLACK);
+  canvas_.setFont(&fonts::Font8x8C64); // 8-bit (Commodore 64) HUD font
 
   if (s.phase == marble::Phase::Calibrate) {
     canvas_.setTextColor(TFT_CYAN, TFT_BLACK);
     canvas_.setTextSize(2);
     canvas_.setCursor(8, 30);
-    canvas_.print("Lay flat");
+    canvas_.print("LAY FLAT");
     canvas_.setTextSize(1);
     canvas_.setCursor(8, 60);
-    canvas_.print("BtnA: start");
+    canvas_.print("BTNA:START");
     canvas_.pushSprite(0, 0);
     return;
   }
@@ -127,11 +125,11 @@ void BoardView::render(const marble::GameState &s, const marble::Config &cfg,
     canvas_.setTextSize(1);
     canvas_.setTextColor(TFT_WHITE, TFT_BLACK);
     canvas_.setCursor(px + 12, py + 30);
-    canvas_.printf("score %d", s.score);
+    canvas_.printf("SCORE %d", s.score);
     canvas_.setCursor(px + 12, py + 42);
-    canvas_.printf("best  %d", best);
+    canvas_.printf("BEST  %d", best);
     canvas_.setCursor(px + 12, py + 54);
-    canvas_.print("BtnA: again");
+    canvas_.print("BTNA:AGAIN");
   }
 
   canvas_.pushSprite(0, 0);
