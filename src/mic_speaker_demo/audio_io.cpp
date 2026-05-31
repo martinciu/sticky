@@ -7,11 +7,11 @@ bool AudioIo::begin() {
   // Size the record buffer to free internal DMA RAM minus a safety margin,
   // capped at MAX_REC_SECONDS. The I2S DMA needs INTERNAL RAM (MALLOC_CAP_8BIT) --
   // not PSRAM, which isn't reliably DMA-accessible on the S3 and isn't enabled in
-  // this build -- so free internal SRAM is the ceiling. ~SAMPLE_RATE*2 bytes/s.
+  // this build -- so free internal SRAM is the ceiling. The arithmetic is the
+  // pure, host-tested audio::recordBufferBytes().
   const size_t freeInternal = heap_caps_get_free_size(MALLOC_CAP_8BIT);
-  const size_t budgetBytes  = freeInternal > HEAP_MARGIN ? freeInternal - HEAP_MARGIN : 0;
-  const size_t capBytes     = (size_t)(SAMPLE_RATE * MAX_REC_SECONDS) * sizeof(int16_t);
-  size_t recBytes = (budgetBytes < capBytes ? budgetBytes : capBytes) & ~((size_t)1);
+  const size_t recBytes = audio::recordBufferBytes(
+      freeInternal, HEAP_MARGIN, SAMPLE_RATE * sizeof(int16_t), MAX_REC_SECONDS);
 
   recBuf_ = (int16_t*)heap_caps_malloc(recBytes, MALLOC_CAP_8BIT);
   recBufOk_ = (recBuf_ != nullptr);

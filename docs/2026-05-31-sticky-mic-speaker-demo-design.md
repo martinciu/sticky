@@ -207,6 +207,9 @@ volume (`SPK_VOLUME = 255`).
     `dbfs` ≈ expected.
   - `dbToBar` boundaries/clamps: `<= floor → 0`, `>= ceil → 100`, midpoint ≈ 50,
     out-of-range clamps.
+  - `recordBufferBytes` (the record-buffer sizing extracted from `AudioIo`):
+    capped at `maxSeconds`, limited by free RAM − margin, `0` when below the
+    margin, rounded down to an even byte count.
 - **Hardware behavior** (flash + observe) — real mic sensitivity, speaker volume,
   audible codec-toggle clicks, button feel. Verified by ear and eye, not automated.
 

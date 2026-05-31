@@ -55,6 +55,30 @@ void test_level_sine_rms(void) {
   TEST_ASSERT_INT16_WITHIN(2, (int16_t)A, lv.peak);
 }
 
+// --- recordBufferBytes: free RAM - margin, capped at maxSeconds, even bytes ---
+// 16 kHz * 2 bytes = 32000 bytes/s; 96 KB margin; 20 s cap => 640000-byte cap.
+void test_recbuf_capped_at_max_seconds(void) {
+  size_t b = audio::recordBufferBytes(2 * 1024 * 1024, 96 * 1024, 32000, 20.0f);
+  TEST_ASSERT_EQUAL_UINT32(640000, b);  // 20 s, not the whole 2 MB
+}
+
+void test_recbuf_limited_by_free_ram(void) {
+  // free 256 KB - margin 96 KB = 160 KB budget, well under the 20 s cap.
+  size_t b = audio::recordBufferBytes(256 * 1024, 96 * 1024, 32000, 20.0f);
+  TEST_ASSERT_EQUAL_UINT32(160 * 1024, b);
+}
+
+void test_recbuf_zero_when_below_margin(void) {
+  size_t b = audio::recordBufferBytes(50 * 1024, 96 * 1024, 32000, 20.0f);
+  TEST_ASSERT_EQUAL_UINT32(0, b);
+}
+
+void test_recbuf_rounds_down_to_even(void) {
+  // budget = 101 bytes -> must round down to 100 (whole int16 samples).
+  size_t b = audio::recordBufferBytes(96 * 1024 + 101, 96 * 1024, 32000, 20.0f);
+  TEST_ASSERT_EQUAL_UINT32(100, b);
+}
+
 static void runAllTests(void) {
   UNITY_BEGIN();
   RUN_TEST(test_dbToBar_clamps_and_scales);
@@ -62,6 +86,10 @@ static void runAllTests(void) {
   RUN_TEST(test_level_empty_block);
   RUN_TEST(test_level_full_scale);
   RUN_TEST(test_level_sine_rms);
+  RUN_TEST(test_recbuf_capped_at_max_seconds);
+  RUN_TEST(test_recbuf_limited_by_free_ram);
+  RUN_TEST(test_recbuf_zero_when_below_margin);
+  RUN_TEST(test_recbuf_rounds_down_to_even);
   UNITY_END();
 }
 

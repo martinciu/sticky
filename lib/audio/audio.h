@@ -24,4 +24,10 @@ uint8_t dbToBar(float dbfs, float floorDb = -60.0f, float ceilDb = 0.0f);
 // a silent Level (peak 0, rms 0, bar 0).
 Level computeLevel(const int16_t* samples, size_t n);
 
+// Bytes to allocate for the record buffer: free RAM minus a safety margin,
+// clamped to maxSeconds of audio, rounded down to a whole number of int16
+// samples (even byte count). Returns 0 if free RAM doesn't exceed the margin.
+size_t recordBufferBytes(size_t freeBytes, size_t marginBytes,
+                         size_t bytesPerSecond, float maxSeconds);
+
 }  // namespace audio

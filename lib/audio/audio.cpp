@@ -29,4 +29,12 @@ Level computeLevel(const int16_t* samples, size_t n) {
   return Level{rms, peak16, dbfs, dbToBar(dbfs)};
 }
 
+size_t recordBufferBytes(size_t freeBytes, size_t marginBytes,
+                         size_t bytesPerSecond, float maxSeconds) {
+  size_t budget = freeBytes > marginBytes ? freeBytes - marginBytes : 0;
+  size_t cap    = (size_t)(bytesPerSecond * maxSeconds);
+  size_t bytes  = budget < cap ? budget : cap;
+  return bytes & ~((size_t)1);  // whole int16 samples (even byte count)
+}
+
 }  // namespace audio
