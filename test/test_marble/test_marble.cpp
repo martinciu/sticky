@@ -87,6 +87,38 @@ void test_eat_dot_far_away_no_score(void) {
   TEST_ASSERT_EQUAL_INT(0, s.score);
 }
 
+void test_hole_penalty_resets_ball_and_flashes(void) {
+  marble::Config cfg; cfg.numHoles = 1; cfg.holePenaltySec = 3.0f;
+  marble::GameState s; s.timeLeft = 10.0f;
+  s.ball.pos = {50.0f, 50.0f}; s.ball.vel = {20.0f, 20.0f};
+  s.holes[0] = { {50.0f, 50.0f} };                 // ball centre inside the hole
+  bool hit = marble::applyHoles(s, cfg);
+  TEST_ASSERT_TRUE(hit);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 7.0f, s.timeLeft);              // -3 s
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, cfg.width  * 0.5f, s.ball.pos.x);// reset to centre
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, cfg.height * 0.5f, s.ball.pos.y);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, s.ball.vel.x);           // velocity killed
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, s.ball.vel.y);
+  TEST_ASSERT_TRUE(s.holeFlash > 0.0f);                           // flash armed
+}
+
+void test_hole_penalty_clamps_time_at_zero(void) {
+  marble::Config cfg; cfg.numHoles = 1; cfg.holePenaltySec = 3.0f;
+  marble::GameState s; s.timeLeft = 2.0f;
+  s.ball.pos = {50.0f, 50.0f};
+  s.holes[0] = { {50.0f, 50.0f} };
+  marble::applyHoles(s, cfg);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, s.timeLeft);             // not negative
+}
+
+void test_tick_clock_counts_down_and_clamps(void) {
+  marble::GameState s; s.timeLeft = 1.0f;
+  marble::tickClock(s, 0.4f);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.6f, s.timeLeft);
+  marble::tickClock(s, 1.0f);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, s.timeLeft);            // clamps at 0
+}
+
 static void runAllTests(void) {
   UNITY_BEGIN();
   RUN_TEST(test_rng_deterministic_and_in_range);
@@ -96,6 +128,9 @@ static void runAllTests(void) {
   RUN_TEST(test_bounce_none_in_centre);
   RUN_TEST(test_eat_dot_scores_and_respawns_clear);
   RUN_TEST(test_eat_dot_far_away_no_score);
+  RUN_TEST(test_hole_penalty_resets_ball_and_flashes);
+  RUN_TEST(test_hole_penalty_clamps_time_at_zero);
+  RUN_TEST(test_tick_clock_counts_down_and_clamps);
   UNITY_END();
 }
 

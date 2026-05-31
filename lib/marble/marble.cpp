@@ -68,4 +68,27 @@ int eatDots(GameState& s, const Config& cfg) {
   return eaten;
 }
 
+bool applyHoles(GameState& s, const Config& cfg) {
+  float reach = cfg.holeR;  // ball centre must enter the hole
+  int n = cfg.numHoles < MAX_HOLES ? cfg.numHoles : MAX_HOLES;
+  for (int i = 0; i < n; ++i) {
+    float dx = s.holes[i].pos.x - s.ball.pos.x;
+    float dy = s.holes[i].pos.y - s.ball.pos.y;
+    if (dx*dx + dy*dy <= reach*reach) {
+      s.timeLeft -= cfg.holePenaltySec;
+      if (s.timeLeft < 0.0f) s.timeLeft = 0.0f;
+      s.ball.pos = { cfg.width * 0.5f, cfg.height * 0.5f };
+      s.ball.vel = { 0.0f, 0.0f };
+      s.holeFlash = cfg.holeFlashSec;
+      return true;
+    }
+  }
+  return false;
+}
+
+void tickClock(GameState& s, float dt) {
+  s.timeLeft -= dt;
+  if (s.timeLeft < 0.0f) s.timeLeft = 0.0f;
+}
+
 }  // namespace marble
