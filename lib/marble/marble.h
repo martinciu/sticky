@@ -62,6 +62,7 @@ struct GameState {
   float timeLeft = 0.0f;
   float holeFlash = 0.0f; // >0 == just hit a hole (render hint), seconds
   float fallTimer = 0.0f; // >0 == ball falling into a hole (anim + penalty), seconds
+  bool  bounced = false;  // a wall was hit during the last step() (SFX hint)
   float rollAngle = 0.0f; // accumulated roll for the spin animation (radians)
   uint32_t rng = 1u;      // xorshift32 state (deterministic spawns)
 };

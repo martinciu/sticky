@@ -234,6 +234,18 @@ void test_holes_stay_on_board_and_dont_overlap(void) {
   }
 }
 
+void test_step_reports_wall_bounce(void) {
+  marble::Config cfg; cfg.numDots = 0; cfg.numHoles = 0;
+  marble::GameState s; marble::reset(s, cfg, 1u);
+  s.ball.pos = { cfg.width, cfg.height * 0.5f };   // at the right wall...
+  s.ball.vel = { 50.0f, 0.0f };                    // ...moving into it
+  marble::step(s, cfg, marble::Vec2{0.0f, 0.0f}, 0.016f);
+  TEST_ASSERT_TRUE(s.bounced);
+  marble::reset(s, cfg, 2u);                       // centred, still -> no bounce
+  marble::step(s, cfg, marble::Vec2{0.0f, 0.0f}, 0.016f);
+  TEST_ASSERT_FALSE(s.bounced);
+}
+
 static void runAllTests(void) {
   UNITY_BEGIN();
   RUN_TEST(test_rng_deterministic_and_in_range);
@@ -241,6 +253,7 @@ static void runAllTests(void) {
   RUN_TEST(test_integrate_damping_slows_ball);
   RUN_TEST(test_bounce_right_wall_reflects_and_clamps);
   RUN_TEST(test_bounce_none_in_centre);
+  RUN_TEST(test_step_reports_wall_bounce);
   RUN_TEST(test_eat_dot_scores_and_respawns_clear);
   RUN_TEST(test_eat_dot_far_away_no_score);
   RUN_TEST(test_hole_starts_fall_no_instant_penalty);

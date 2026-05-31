@@ -132,6 +132,7 @@ void reset(GameState& s, const Config& cfg, uint32_t seed) {
   s.timeLeft  = cfg.roundSeconds;
   s.holeFlash = 0.0f;
   s.fallTimer = 0.0f;
+  s.bounced   = false;
   s.rollAngle = 0.0f;
   s.ball.pos  = { cfg.width * 0.5f, cfg.height * 0.5f };
   s.ball.vel  = { 0.0f, 0.0f };
@@ -154,6 +155,7 @@ void step(GameState& s, const Config& cfg, Vec2 tilt, float dt) {
   // keeps running -- that lost time is the penalty. When the fall finishes,
   // respawn at the centre and resume normal play.
   if (s.fallTimer > 0.0f) {
+    s.bounced = false;
     s.fallTimer -= dt;
     tickClock(s, dt);
     if (s.holeFlash > 0.0f) { s.holeFlash -= dt; if (s.holeFlash < 0.0f) s.holeFlash = 0.0f; }
@@ -167,7 +169,7 @@ void step(GameState& s, const Config& cfg, Vec2 tilt, float dt) {
   }
 
   integrate(s.ball, tilt, cfg, dt);
-  bounceWalls(s.ball, cfg);
+  s.bounced = bounceWalls(s.ball, cfg);
   eatDots(s, cfg);
   applyHoles(s, cfg);
   tickClock(s, dt);
