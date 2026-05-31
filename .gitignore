@@ -13,3 +13,6 @@ include/secrets.h
 
 # macOS
 .DS_Store
+
+# Device firmware dumps / backups (large, device-specific binaries)
+*.bin
