@@ -8,7 +8,15 @@
 
 namespace marble {
 
-struct Vec2 { float x = 0.0f; float y = 0.0f; };
+// Explicit constructors so `Vec2{x, y}` works under the device toolchain's
+// older C++ mode too (a struct with default member initializers is NOT an
+// aggregate before C++14, so brace-init would otherwise need a constructor).
+struct Vec2 {
+  float x = 0.0f;
+  float y = 0.0f;
+  Vec2() = default;
+  Vec2(float x_, float y_) : x(x_), y(y_) {}
+};
 
 struct Ball { Vec2 pos; Vec2 vel; };
 struct Dot  { Vec2 pos; bool active = false; };
