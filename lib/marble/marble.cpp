@@ -27,4 +27,14 @@ void integrate(Ball& b, Vec2 tilt, const Config& cfg, float dt) {
   b.pos.y += b.vel.y * dt;
 }
 
+bool bounceWalls(Ball& b, const Config& cfg) {
+  bool hit = false;
+  const float r = cfg.ballR;
+  if (b.pos.x < r)               { b.pos.x = r;               if (b.vel.x < 0) b.vel.x = -b.vel.x * cfg.restitution; hit = true; }
+  if (b.pos.x > cfg.width - r)   { b.pos.x = cfg.width - r;   if (b.vel.x > 0) b.vel.x = -b.vel.x * cfg.restitution; hit = true; }
+  if (b.pos.y < r)               { b.pos.y = r;               if (b.vel.y < 0) b.vel.y = -b.vel.y * cfg.restitution; hit = true; }
+  if (b.pos.y > cfg.height - r)  { b.pos.y = cfg.height - r;  if (b.vel.y > 0) b.vel.y = -b.vel.y * cfg.restitution; hit = true; }
+  return hit;
+}
+
 }  // namespace marble

@@ -42,11 +42,34 @@ void test_integrate_damping_slows_ball(void) {
   TEST_ASSERT_TRUE(v2 > 0.0f);     // same direction
 }
 
+void test_bounce_right_wall_reflects_and_clamps(void) {
+  marble::Config cfg;          // width 232, ballR 6, restitution 0.6
+  marble::Ball b;
+  b.pos.x = cfg.width;         // past the right edge
+  b.pos.y = cfg.height / 2;
+  b.vel.x = 50.0f; b.vel.y = 0.0f;
+  bool hit = marble::bounceWalls(b, cfg);
+  TEST_ASSERT_TRUE(hit);
+  TEST_ASSERT_TRUE(b.vel.x < 0.0f);                                  // reflected
+  TEST_ASSERT_TRUE(b.pos.x <= cfg.width - cfg.ballR + 0.001f);       // clamped inside
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 50.0f * cfg.restitution, -b.vel.x);// damped bounce
+}
+
+void test_bounce_none_in_centre(void) {
+  marble::Config cfg;
+  marble::Ball b;
+  b.pos.x = cfg.width / 2; b.pos.y = cfg.height / 2;
+  b.vel.x = 10.0f; b.vel.y = 10.0f;
+  TEST_ASSERT_FALSE(marble::bounceWalls(b, cfg));
+}
+
 static void runAllTests(void) {
   UNITY_BEGIN();
   RUN_TEST(test_rng_deterministic_and_in_range);
   RUN_TEST(test_integrate_rolls_toward_tilt);
   RUN_TEST(test_integrate_damping_slows_ball);
+  RUN_TEST(test_bounce_right_wall_reflects_and_clamps);
+  RUN_TEST(test_bounce_none_in_centre);
   UNITY_END();
 }
 
