@@ -21,6 +21,7 @@ static size_t   recSamples = 0;         // actual capacity in samples (set in se
 static float    recSeconds = 0.0f;      // recSamples / SAMPLE_RATE (for the progress bar)
 static bool     recBufOk   = false;
 static uint32_t recStart   = 0;
+static float    recElapsed = 0.0f;      // seconds held so far (push-to-talk readout)
 
 static uint8_t  bar = 0;
 static uint8_t  peakHold = 0;
@@ -55,12 +56,12 @@ static void drawFrame(const char* status, uint16_t statusColor, int progressPct)
   canvas.setTextSize(1);
   canvas.setTextColor(TFT_WHITE, TFT_BLACK);
   canvas.setCursor(4, y + h + 6);
-  if (progressPct >= 0) canvas.printf("rec %3d%% of %.0fs", progressPct, recSeconds);
+  if (progressPct >= 0) canvas.printf("rec %.1fs / %.0fs", recElapsed, recSeconds);
   else                  canvas.printf("level %3d/100", bar);
 
   canvas.setTextColor(TFT_CYAN, TFT_BLACK);
   canvas.setCursor(4, M5.Display.height() - 12);
-  canvas.print(recBufOk ? "A: rec+play   B: tone" : "A: --   B: tone");
+  canvas.print(recBufOk ? "A hold=rec  B=tone" : "A: --   B=tone");
   canvas.pushSprite(0, 0);
 }
 
@@ -115,11 +116,15 @@ void loop() {
       sampleVu();
       drawFrame("VU", TFT_GREEN, -1);
       if (recBufOk && M5.BtnA.wasPressed()) {
-        // One gap-free capture owns the mic; poll isRecording() to detect the end.
+        // Push-to-talk: start a capture of up to the full buffer; we stop early
+        // on release (below). Zero it first so any unfilled tail plays as silence
+        // (heap_caps_malloc doesn't clear, and a short take leaves an old tail).
+        memset(recBuf, 0, recSamples * sizeof(int16_t));
         M5.Mic.record(recBuf, recSamples, SAMPLE_RATE);
         recStart = millis();
+        recElapsed = 0.0f;
         state = State::RECORDING;
-        Serial.println("RECORDING");
+        Serial.println("RECORDING (hold BtnA)");
       } else if (M5.BtnB.wasPressed()) {
         enterSpeaker();
         M5.Speaker.tone(toneFreqs[toneIdx], 200);
@@ -131,16 +136,34 @@ void loop() {
 
     case State::RECORDING: {
       uint32_t elapsed = millis() - recStart;
+      recElapsed = elapsed / 1000.0f;
       int pct = (int)(elapsed * 100 / (uint32_t)(recSeconds * 1000));
       if (pct > 100) pct = 100;
       drawFrame("REC", TFT_RED, pct);
-      // The >100 ms guard avoids a start-up race where isRecording() reads 0
-      // before the capture task has begun.
-      if (elapsed > 100 && M5.Mic.isRecording() == 0) {
-        enterSpeaker();
-        M5.Speaker.playRaw(recBuf, recSamples, SAMPLE_RATE);
-        state = State::PLAYBACK;
-        Serial.println("PLAYBACK");
+
+      // Stop when BtnA is released (push-to-talk) or the buffer fills (safety
+      // net). The >100 ms guard avoids a start-up race where isRecording()
+      // reads 0 before the capture task has begun.
+      bool full     = (elapsed > 100 && M5.Mic.isRecording() == 0);
+      bool released = M5.BtnA.wasReleased();
+      if (released || full) {
+        // Captured length: full buffer if it filled, else a time-based estimate
+        // (capture runs at SAMPLE_RATE). The zeroed tail keeps any over-estimate
+        // silent rather than popping.
+        size_t captured = full ? recSamples
+                               : (size_t)((uint64_t)elapsed * SAMPLE_RATE / 1000);
+        if (captured > recSamples) captured = recSamples;
+
+        enterSpeaker();  // Mic.end() also aborts the in-flight capture
+        if (captured > 0) {
+          M5.Speaker.playRaw(recBuf, captured, SAMPLE_RATE);
+          state = State::PLAYBACK;
+          Serial.printf("PLAYBACK (%.1fs)\n", (float)captured / SAMPLE_RATE);
+        } else {
+          enterMic();
+          state = State::IDLE_VU;
+          Serial.println("IDLE_VU (empty take)");
+        }
       }
       break;
     }

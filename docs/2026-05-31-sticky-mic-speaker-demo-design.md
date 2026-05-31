@@ -128,33 +128,37 @@ Buttons (physical mapping confirmed on first flash, per the Plan-1 finding
 pattern): `BtnA` (KEY1) = **record → playback**, `BtnB` (KEY2) = **tone**.
 
 ```
-BOOT ─▶ IDLE_VU ──(BtnA)──▶ RECORDING ──(buffer full)──▶ PLAYBACK ──┐
-          ▲  │                                                       │
-          │  └────────────(BtnB)──▶ TONE ──(done)──┐                 │
-          └──────────────────────────────────────── ◀───────────────┘
+BOOT ─▶ IDLE_VU ──(BtnA press)──▶ RECORDING ──(BtnA release / buffer full)──▶ PLAYBACK ──┐
+          ▲  │                                                                            │
+          │  └────────────(BtnB)──▶ TONE ──(done)──┐                                      │
+          └──────────────────────────────────────── ◀────────────────────────────────────┘
 
   codec owner:   IDLE_VU / RECORDING = Mic        PLAYBACK / TONE = Speaker
 ```
 
 - **IDLE_VU** — each loop grabs a ~256-sample block via
-  `M5.Mic.record(block, N, 16000)`, runs `audio::computeLevel(block, N)`, and
+  `M5.Mic.record(block, N, SAMPLE_RATE)`, runs `audio::computeLevel(block, N)`, and
   draws a colored VU bar (green → yellow → red zones) with the numeric level and
-  a decaying peak-hold tick. `BtnA` → RECORDING; `BtnB` → TONE.
-- **RECORDING** — issues a **single gap-free** `M5.Mic.record(buf, REC_SAMPLES,
-  16000)` into the PSRAM buffer and polls `M5.Mic.isRecording()` each loop
-  (non-blocking); shows a time-based "REC 1.3s" progress bar. The one `record()`
-  call owns the mic for the whole capture, so the live VU pauses during recording
-  and resumes in IDLE_VU — this avoids the inter-buffer clicks a chunked capture
-  would risk. When `isRecording()` returns 0 → PLAYBACK.
+  a decaying peak-hold tick. `BtnA` press → RECORDING; `BtnB` → TONE.
+- **RECORDING — push-to-talk.** On `BtnA` *press*, zero the buffer (so any
+  unfilled tail is silent) and issue a **single gap-free**
+  `M5.Mic.record(buf, recSamples, SAMPLE_RATE)` for up to the full buffer. Each
+  loop shows a "REC 1.3s / Xs" readout. Recording stops on **`BtnA` release**
+  (push-to-talk) or when the buffer fills (`isRecording() == 0`, the safety net).
+  The captured length is the full buffer if it filled, else a **time-based
+  estimate** (`elapsed_ms × SAMPLE_RATE / 1000`); the zeroed tail keeps any
+  over-estimate silent rather than popping. The single `record()` call owns the
+  mic, so the live VU pauses during a take and resumes in IDLE_VU. → PLAYBACK
+  (or back to IDLE_VU if the take was empty).
 - **PLAYBACK** — `enterSpeaker()`, then
-  `M5.Speaker.playRaw(buf, REC_SAMPLES, 16000)`; poll `M5.Speaker.isPlaying()`
+  `M5.Speaker.playRaw(buf, captured, SAMPLE_RATE)`; poll `M5.Speaker.isPlaying()`
   each loop (non-blocking). When done → `enterMic()` → IDLE_VU. Shows "PLAY".
-- **TONE** — `enterSpeaker()`, `M5.Speaker.tone(1000, 200)` (1 kHz, 200 ms); poll
-  done → `enterMic()` → IDLE_VU. *Optional:* successive presses cycle C/E/G
-  (523/659/784 Hz) for a little melody.
+- **TONE** — `enterSpeaker()`, `M5.Speaker.tone(…, 200)` (200 ms); poll
+  done → `enterMic()` → IDLE_VU. Successive presses cycle C/E/G (523/659/784 Hz).
 
-Button presses are **ignored unless in `IDLE_VU`**, so a transition is never
-interrupted mid-flight and the codec handoff stays clean.
+In `RECORDING` only the stop triggers (release / buffer-full) are handled; in the
+other non-idle states (`PLAYBACK`/`TONE`) presses are ignored, so a transition is
+never interrupted mid-flight and the codec handoff stays clean.
 
 Why this stays non-blocking: both `record()` (DMA double-buffered) and
 `playRaw()`/`tone()` (async DMA playback polled via `isPlaying()`) let the loop
@@ -200,12 +204,12 @@ volume (`SPK_VOLUME = 255`).
 
 ## 9. Scope (YAGNI)
 
-**In (v1):** live VU meter, record → playback, button tone, the ES8311 codec
-toggle, host-tested level math.
+**In (v1):** live VU meter, push-to-talk record → playback (variable length),
+button tone, the ES8311 codec toggle, host-tested level math.
 
 **Out (future / notes):** FFT/spectrum view (the bundled `Advanced/Mic_FFT`
-already covers it), saving audio to flash/SD, gain or volume UI, stereo capture,
-variable record length, wake-on-sound.
+already covers it), saving audio to flash/SD, on-the-fly encoding (WAV/ADPCM),
+gain or volume UI, stereo capture, wake-on-sound.
 
 ## 10. Open items to confirm during implementation
 
@@ -245,6 +249,13 @@ variable record length, wake-on-sound.
   the actual seconds. (8 kHz was tried for ~2× length but 16 kHz was preferred for
   fidelity.) Internal DMA RAM is the ceiling; for much longer clips (minutes) the
   path is enabling PSRAM + chunked streaming capture — a future-rung change.
+- **Recording is push-to-talk.** Changed from a fixed-length auto-stop capture to
+  **hold-BtnA-to-record, release-to-play**. Implemented on the existing single
+  gap-free `record()` (sized to the full buffer): release calls `M5.Mic.end()`
+  (via `enterSpeaker()`) to abort, and the played length is a time-based estimate
+  of what was captured; the buffer is zeroed before each take so an over-estimate
+  is silent. Buffer-full is the safety-net stop. (A "second press to stop" toggle
+  is the easy alternative if hands-free long takes are ever wanted.)
 - **Pending on-device confirmation (re-flash):** physical BtnA/BtnB → KEY1/KEY2
   mapping; the `getPsramSize()` value; mic sensitivity / `dbToBar` window + `SPK_VOLUME`
   tuning; audible click on the codec handoff.
