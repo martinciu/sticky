@@ -37,15 +37,25 @@ bool bounceWalls(Ball& b, const Config& cfg) {
   return hit;
 }
 
-// Pick a board position at least minDist from `avoid`, within the wall margins.
-// Best-effort: gives up after a few tries and returns the last candidate.
-static Vec2 placeClear(GameState& s, const Config& cfg, Vec2 avoid, float minDist) {
+// Place a hole fully on the board (centre kept holeR from every edge), clear of
+// the spawn centre, and not overlapping any of the `placed` holes already set --
+// so holes never run off-board or overlap. Best-effort: returns the last on-board
+// candidate if it can't satisfy every constraint within the try budget.
+static Vec2 placeHole(GameState& s, const Config& cfg, Vec2 avoidCentre, int placed) {
+  const float minCentre = cfg.holeR + cfg.ballR * 3.0f;  // clear of the ball spawn
+  const float minHole   = 2.0f * cfg.holeR + 2.0f;       // gap between hole centres
   Vec2 p{ cfg.width * 0.5f, cfg.height * 0.5f };
-  for (int t = 0; t < 16; ++t) {
-    p.x = rngRange(s.rng, cfg.ballR, cfg.width  - cfg.ballR);
-    p.y = rngRange(s.rng, cfg.ballR, cfg.height - cfg.ballR);
-    float dx = p.x - avoid.x, dy = p.y - avoid.y;
-    if (dx*dx + dy*dy >= minDist*minDist) break;
+  for (int t = 0; t < 32; ++t) {
+    p.x = rngRange(s.rng, cfg.holeR, cfg.width  - cfg.holeR);
+    p.y = rngRange(s.rng, cfg.holeR, cfg.height - cfg.holeR);
+    float dxc = p.x - avoidCentre.x, dyc = p.y - avoidCentre.y;
+    if (dxc*dxc + dyc*dyc < minCentre*minCentre) continue;   // too near the ball spawn
+    bool ok = true;
+    for (int i = 0; i < placed; ++i) {                       // not on another hole
+      float dx = p.x - s.holes[i].pos.x, dy = p.y - s.holes[i].pos.y;
+      if (dx*dx + dy*dy < minHole*minHole) { ok = false; break; }
+    }
+    if (ok) break;
   }
   return p;
 }
@@ -123,10 +133,10 @@ void reset(GameState& s, const Config& cfg, uint32_t seed) {
   s.ball.pos  = { cfg.width * 0.5f, cfg.height * 0.5f };
   s.ball.vel  = { 0.0f, 0.0f };
   for (int i = 0; i < MAX_DOTS;  ++i) s.dots[i].active = false;
-  // Holes well clear of the centre (where the ball spawns), then dots clear too.
+  // Holes: fully on-board, clear of the spawn centre, and non-overlapping.
   int nh = cfg.numHoles < MAX_HOLES ? cfg.numHoles : MAX_HOLES;
   for (int i = 0; i < nh; ++i)
-    s.holes[i].pos = placeClear(s, cfg, s.ball.pos, cfg.holeR + cfg.ballR * 4.0f);
+    s.holes[i].pos = placeHole(s, cfg, s.ball.pos, i);  // i = holes already placed
   int nd = cfg.numDots < MAX_DOTS ? cfg.numDots : MAX_DOTS;
   for (int i = 0; i < nd; ++i) {
     s.dots[i].pos    = placeDot(s, cfg);

@@ -194,6 +194,27 @@ void test_eaten_dot_respawns_off_holes(void) {
   }
 }
 
+void test_holes_stay_on_board_and_dont_overlap(void) {
+  marble::Config cfg;  // 3 holes
+  for (uint32_t seed = 1; seed <= 200; ++seed) {
+    marble::GameState s;
+    marble::reset(s, cfg, seed);
+    for (int i = 0; i < cfg.numHoles; ++i) {
+      // fully on the board: centre kept at least holeR from every edge
+      TEST_ASSERT_TRUE(s.holes[i].pos.x >= cfg.holeR);
+      TEST_ASSERT_TRUE(s.holes[i].pos.x <= cfg.width - cfg.holeR);
+      TEST_ASSERT_TRUE(s.holes[i].pos.y >= cfg.holeR);
+      TEST_ASSERT_TRUE(s.holes[i].pos.y <= cfg.height - cfg.holeR);
+      // no overlap with any other hole (centres >= 2*holeR apart)
+      for (int j = i + 1; j < cfg.numHoles; ++j) {
+        float dx = s.holes[i].pos.x - s.holes[j].pos.x;
+        float dy = s.holes[i].pos.y - s.holes[j].pos.y;
+        TEST_ASSERT_TRUE(sqrtf(dx*dx + dy*dy) >= 2.0f * cfg.holeR);
+      }
+    }
+  }
+}
+
 static void runAllTests(void) {
   UNITY_BEGIN();
   RUN_TEST(test_rng_deterministic_and_in_range);
@@ -212,6 +233,7 @@ static void runAllTests(void) {
   RUN_TEST(test_step_is_noop_after_game_over);
   RUN_TEST(test_dots_never_spawn_on_holes);
   RUN_TEST(test_eaten_dot_respawns_off_holes);
+  RUN_TEST(test_holes_stay_on_board_and_dont_overlap);
   UNITY_END();
 }
 
