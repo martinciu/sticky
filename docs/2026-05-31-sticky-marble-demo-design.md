@@ -98,7 +98,7 @@ struct Config {           // all tunables; sane defaults below
   float width, height;    // playfield size in px (board area, not full screen)
   float ballR, dotR, holeR;
   float gravity;          // accel gain: px/s^2 per g of tilt
-  float friction;         // per-step velocity multiplier (<1)
+  float damping;          // velocity decay per second (frame-rate independent)
   float restitution;      // wall bounce energy retained (0..1)
   float roundSeconds;     // 60
   float holePenaltySec;   // 3
@@ -139,7 +139,9 @@ Spawn placement uses a small **deterministic PRNG** (e.g. xorshift) seeded from
 The physics integrator and all game rules. Broken into small pure helpers so each
 is testable in isolation:
 
-- `integrate(ball, accel, friction, dt)` — `vel += accel*dt; vel *= friction; pos += vel*dt`.
+- `integrate(ball, tilt, cfg, dt)` — `vel += gravity*tilt*dt; vel *= exp(-damping*dt); pos += vel*dt`.
+  Damping is a per-*second* exponential decay (not a per-step multiplier), so the
+  feel is independent of frame rate.
 - `bounceWalls(ball, cfg)` — reflect the velocity component on any of the 4 edges,
   scale by `restitution`, clamp the ball inside.
 - `eatDots(state, cfg)` — centre-distance test ball↔dot; on overlap score++ and
@@ -210,7 +212,7 @@ tune empirically once flashed:
 | Holes | **3** | fixed for the round |
 | Ball / dot / hole radius | sized for 240×135 | e.g. ~6 / ~3 / ~8 px |
 | `gravity` (accel gain) | tune on device | px/s² per g of tilt |
-| `friction` | ~0.98 / step | inertia + roll-on |
+| `damping` | ~1.5 / s | inertia + roll-on (exp decay) |
 | `restitution` | ~0.6 | damped wall bounce |
 
 **Best score is kept in RAM only** (resets on power cycle). Persisting it across
