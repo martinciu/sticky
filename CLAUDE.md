@@ -38,8 +38,12 @@ pio device list                           # find the /dev/cu.usbmodem… port
 
 `r1_hello` → `r2_screen` → `r3_buttons` → `r4_wifi` → `r5_clock` → `r6_weather`
 → `widget` (the assembled clock+weather gadget), plus `flicker_demo` (sprite vs
-direct-draw comparison), `r8_lvgl` / `r9_lvgl_ui` (LVGL experiments), and
-`native` (host tests). Each device env maps to `src/<env>/main.cpp`.
+direct-draw comparison), `r8_lvgl` / `r9_lvgl_ui` (LVGL experiments),
+`mic_speaker_demo` (ES8311 mic + speaker), `marble_demo` (BMI270 tilt game with
+8-bit chiptune audio), and `native` (host tests). A simple rung is a single
+`src/<env>/main.cpp`; richer rungs (`mic_speaker_demo`, `marble_demo`) split into
+several files under `src/<env>/` (e.g. `app` + view + hardware-io + `main`), all
+compiled by the one `build_src_filter`.
 
 ### Tooling
 
@@ -56,11 +60,13 @@ doxygen Doxyfile         # browseable HTML API docs for M5GFX/M5Unified → .dox
 deps). Each device env does `extends = device` and sets
 `build_src_filter = -<*> +<<rung>/>` so **only that rung's folder compiles** —
 the rungs never see each other's `main.cpp`. The `native` env does **not**
-extend `device` (no Arduino framework, no M5 deps); it builds only `test/` +
-`lib/weather` + ArduinoJson so it can run on the host.
+extend `device` (no Arduino framework, no M5 deps); it builds only `test/` plus
+whatever pure `lib/` modules the tests `#include` (`lib/weather`, `lib/audio`,
+`lib/marble`) + ArduinoJson, so it runs on the host.
 
-When adding a new rung: create `src/<name>/main.cpp` and add a matching
-`[env:<name>]` block that `extends = device` with its own `build_src_filter`.
+When adding a new rung: create `src/<name>/` (at least `main.cpp`; split into more
+files if it grows) and add a matching `[env:<name>]` block that
+`extends = device` with `build_src_filter = -<*> +<<name>/>`.
 
 ### Pure-logic-vs-hardware split (this is the testing strategy)
 
@@ -70,7 +76,11 @@ so they unit-test on the host.** `lib/weather/` depends *only* on ArduinoJson
 are pure and covered by `test/test_weather/`. The device-only HTTPS fetch
 (`fetchWeather()` in `src/widget/main.cpp`) wraps that pure parser. Apply the
 same pattern for any new logic worth testing — keep `draw`/`fetch` thin, put
-parsing/formatting/mapping in a host-portable `lib/` module.
+parsing/formatting/mapping in a host-portable `lib/` module. The same seam holds
+`lib/audio` (level/buffer math behind `mic_speaker_demo`) and `lib/marble` (the
+tilt-marble physics, wall bounce, collisions, scoring, and deterministic spawn
+placement behind `marble_demo`) — both pure, both host-tested, with the
+device-only hardware (`M5.Imu`, `M5.Speaker`, rendering) kept thin in `src/`.
 
 Hardware behavior (drawing, button feel, battery) is verified by **flashing and
 observing** the LCD + serial, not by automated tests.
@@ -106,6 +116,23 @@ The M5GFX bridge is a `flush_cb` (`setAddrWindow` + `writePixels`) plus a
 `tick_cb` returning `millis()`. The two physical buttons are wired as a single
 LVGL **encoder** input device (BtnA = advance focus / change value, BtnB =
 press/select), driving a focus group.
+
+### IMU + audio rungs (`mic_speaker_demo`, `marble_demo`)
+
+- **Audio** uses `M5.Speaker` (square-wave `tone()` = chiptune) and `M5.Mic`, both
+  behind the shared **ES8311 codec** — mic and speaker can't run at once, so
+  `mic_speaker_demo` toggles them (`M5.Mic.end()` / `M5.Speaker.begin()`).
+  `marble_demo` uses the speaker only: background music and SFX run on **separate
+  speaker channels** (0 = music, 1 = SFX, 2 = bounce) driven by a small
+  non-blocking note sequencer, so they mix and never stall the loop
+  (`stop_current_sound` is per-channel, so an SFX won't cut the music). See
+  `src/marble_demo/sound.*`.
+- **IMU** (`marble_demo`) reads tilt via `M5.Imu.getAccel`; "level" is calibrated
+  at start (re-zero on the side button), and the raw-axis→screen sign/mapping was
+  confirmed on first flash — it's recorded in the design-doc Findings (X is
+  inverted, Y normal, axes not swapped). Re-confirm if the hardware changes.
+- **Buttons** in `marble_demo`: `BtnA` start/restart, `BtnB` music on/off, the
+  side power button (short click via the M5PM1) re-zeroes level.
 
 ### clangd note
 

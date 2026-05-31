@@ -46,6 +46,7 @@ Build/flash any one with `-e <env>`.
 | `flicker_demo` | Sprite vs direct-draw comparison | Side-by-side flicker test |
 | `r8_lvgl` / `r9_lvgl_ui` | LVGL on M5GFX + 2-button encoder nav | LVGL widgets |
 | `mic_speaker_demo` | ES8311 mic + speaker | VU meter, push-to-talk record/playback, tone |
+| `marble_demo` | BMI270 IMU tilt game + 8-bit chiptune audio | Tilt a rolling marble: collect dots, dodge holes, beat the 60 s clock |
 | `native` | Host unit tests (no board) | Runs on your Mac |
 
 ## 🚀 Quick start
@@ -99,17 +100,19 @@ pio test -e native
   that rung's folder compiles — rungs never see each other's `main.cpp`.
 - **Testable seam.** Device-coupled code stays thin in `src/`; the pure brains go
   in `lib/` so they unit-test on the host. `lib/weather` (`parseWeather`,
-  `wmoLabel`) and `lib/audio` (`computeLevel`, `dbToBar`, `recordBufferBytes`)
-  depend only on the standard library + ArduinoJson, and are covered by
-  `test/`. Hardware behavior (drawing, audio, battery) is verified by flashing
-  and observing.
+  `wmoLabel`), `lib/audio` (`computeLevel`, `dbToBar`, `recordBufferBytes`), and
+  `lib/marble` (tilt-marble physics, collisions, scoring, spawn placement) depend
+  only on the standard library (+ ArduinoJson for weather), and are covered by
+  `test/`. Hardware behavior (drawing, audio, IMU tilt, battery) is verified by
+  flashing and observing.
 - **Design docs live in `docs/`** — the full design and rung-by-rung plans for the
-  weather clock and the mic/speaker demo are committed there.
+  weather clock, the mic/speaker demo, and the IMU marble game are committed there.
 
 ```
 src/<rung>/        one folder per rung (its own PlatformIO env)
 lib/weather/       pure weather JSON parser + WMO labels  (host-tested)
 lib/audio/         pure audio level + buffer math         (host-tested)
+lib/marble/        pure tilt-marble physics + game logic  (host-tested)
 include/           config.h (committed), secrets.h (gitignored), shared headers
 test/              Unity host tests
 docs/              design + implementation plans

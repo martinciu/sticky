@@ -355,6 +355,29 @@ rung), gyro-based control, sprite-sheet ball animation, difficulty ramp.
   game-over text sits on a rounded panel so it reads over the coloured board.
 - **`ballR` bumped 6 → 7** for a slightly chunkier marble after the visual changes.
 
+### Audio (follow-up round)
+
+- **8-bit chiptune from `M5.Speaker.tone()`** — square-wave beeps, no PCM assets.
+  Looping **menu** + **gameplay** music plus one-shot SFX (start / eat / fall /
+  bounce / game-over), all in the device-only `src/marble_demo/sound.*` (verified
+  by ear, no host test — same stance as `mic_speaker_demo`'s hardware).
+- **Non-blocking sequencer.** A tiny per-note timer (`advance()` each loop)
+  schedules one `tone()` at a time, so music and SFX never block the game loop.
+  Music runs on speaker **channel 0**, SFX on **channel 1**, the wall-bounce tick
+  on **channel 2** — `stop_current_sound` is **per-channel**, so the channels mix
+  and SFX never cut the music. The fall animation no longer needs the speaker; only
+  `M5.Speaker` is used here (no mic, so no ES8311 toggling).
+- **Wall-bounce SFX is edge-detected.** `step()` now reports a wall hit
+  (`GameState.bounced`, host-tested); the app fires the tick only on the
+  not-touching → touching edge, so a ball pinned against a wall doesn't machine-gun
+  the sound. First attempt (one short 262 Hz tick at low volume) was inaudible
+  under the music — fixed with a louder two-tone "tok" (880 → 494 Hz) on its own
+  full-volume channel.
+- **Controls / mixing.** `BtnB` toggles the background music (SFX keep playing);
+  level re-zero moved to the **side power button** (M5PM1 short-click; long-press
+  stays a hardware power-off). Tunables live in `sound.cpp`: master + per-channel
+  volumes in `begin()`, and the melody / SFX note tables.
+
 ## Sources
 
 - M5Unified `Basic/Imu` example (`.pio/libdeps/*/M5Unified/examples/Basic/Imu/`).
