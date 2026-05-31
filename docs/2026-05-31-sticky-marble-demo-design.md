@@ -317,6 +317,36 @@ rung), gyro-based control, sprite-sheet ball animation, difficulty ramp.
   accumulated `rollAngle` (with a fixed specular highlight) reads convincingly as
   rolling; spot radius 2 / orbit factor 0.55 looked right without tuning.
 
+### Visual polish (follow-up round)
+
+- **Board surface.** Replaced the black void with a **slate-blue tray**
+  (`color565(36,44,58)`) and a raised bevel (light top-left, dark bottom-right).
+  Dots became **gold coins** because green pickups vanished against the slate.
+- **Consistent light direction is what sells the fake 3D.** The board bevel, the
+  ball's specular highlight, and the hole glint all assume one light source in
+  the **upper-left**; when every element agrees, the flat 2D shapes read as a
+  coherent lit scene.
+- **Holes — a static gradient reads as an "eye", motion parallax reads as depth.**
+  A radially-symmetric light-rim→dark-center gradient looks like a flat iris/target
+  because it never changes — there's no parallax. Fix: make the depth
+  **view-dependent**. The hole is now a gradient funnel whose **deeper rings lean
+  toward the live tilt vector** (the IMU tilt is threaded `app → BoardView::render`).
+  As you tilt, the dark interior shifts like you're looking down an angled shaft —
+  that motion is the depth cue. Two implementation guards learned by trial:
+  - **Keep the outermost ring centred on the opening** (only inner rings lean), so
+    the dark can never spill past the rim however hard you tilt. An earlier version
+    drew one big offset black disc, which "came out of the hole" at large tilt.
+  - **Use a `t*t` brightness falloff and no solid black disc**, so the dark core
+    stays small and the funnel is a smooth gradient rather than a black blob.
+  - Tunables: `VIEW_SIGN` (lean direction), `PARALLAX` (lean px per g),
+    `100 * t * t` (rim brightness + dark-core size).
+- **8-bit HUD font.** Timer and score (and the start / game-over text) use the
+  bundled **`fonts::Font8x8C64`** (the Commodore 64 8×8 pixel font) with uppercase
+  labels for an arcade feel. Bundled `fonts::Font7` (7-segment) is the alternative
+  for a digital-scoreboard look. Also: timer turns **red under 10 s**, and the
+  game-over text sits on a rounded panel so it reads over the coloured board.
+- **`ballR` bumped 6 → 7** for a slightly chunkier marble after the visual changes.
+
 ## Sources
 
 - M5Unified `Basic/Imu` example (`.pio/libdeps/*/M5Unified/examples/Basic/Imu/`).
