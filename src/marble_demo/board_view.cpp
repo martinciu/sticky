@@ -10,7 +10,6 @@ void BoardView::begin() {
 }
 
 void BoardView::render(const marble::GameState& s, const marble::Config& cfg, int best) {
-  (void)best;  // unused until the game-over overlay (Task 7)
   canvas_.fillSprite(TFT_BLACK);
 
   if (s.phase == marble::Phase::Calibrate) {
@@ -25,9 +24,33 @@ void BoardView::render(const marble::GameState& s, const marble::Config& cfg, in
     return;
   }
 
-  // Board frame.
+  // HUD: time left (left) + score (right-ish).
+  canvas_.setTextSize(2);
+  canvas_.setTextColor(TFT_WHITE, TFT_BLACK);
+  canvas_.setCursor(4, 4);
+  canvas_.printf("%4.1f", s.timeLeft);
+  canvas_.setCursor(150, 4);
+  canvas_.printf("S%d", s.score);
+
+  // Board frame (flashes red briefly after a hole hit).
+  uint16_t frame = s.holeFlash > 0.0f ? TFT_RED : TFT_DARKGREY;
   canvas_.drawRect(BOARD_X - 1, BOARD_Y - 1,
-                   (int)cfg.width + 2, (int)cfg.height + 2, TFT_DARKGREY);
+                   (int)cfg.width + 2, (int)cfg.height + 2, frame);
+
+  // Holes: dark wells with a red ring.
+  for (int i = 0; i < cfg.numHoles && i < marble::MAX_HOLES; ++i) {
+    int hx = BOARD_X + (int)s.holes[i].pos.x;
+    int hy = BOARD_Y + (int)s.holes[i].pos.y;
+    canvas_.fillCircle(hx, hy, (int)cfg.holeR, TFT_BLACK);
+    canvas_.drawCircle(hx, hy, (int)cfg.holeR, TFT_RED);
+  }
+
+  // Dots: bright pickups.
+  for (int i = 0; i < cfg.numDots && i < marble::MAX_DOTS; ++i) {
+    if (!s.dots[i].active) continue;
+    canvas_.fillCircle(BOARD_X + (int)s.dots[i].pos.x,
+                       BOARD_Y + (int)s.dots[i].pos.y, (int)cfg.dotR, TFT_GREENYELLOW);
+  }
 
   // Ball + static specular highlight.
   int bx = BOARD_X + (int)s.ball.pos.x;
@@ -35,14 +58,21 @@ void BoardView::render(const marble::GameState& s, const marble::Config& cfg, in
   canvas_.fillCircle(bx, by, (int)cfg.ballR, TFT_WHITE);
   canvas_.fillCircle(bx - 2, by - 2, 2, TFT_LIGHTGREY);
 
-  // Debug readout (helps confirm the axis mapping on first flash): tilt the
-  // right edge down -> vel.x and pos.x should grow, and the ball moves right.
-  canvas_.setTextSize(1);
-  canvas_.setTextColor(TFT_WHITE, TFT_BLACK);
-  canvas_.setCursor(4, 4);
-  canvas_.printf("vel %4d,%4d", (int)s.ball.vel.x, (int)s.ball.vel.y);
-  canvas_.setCursor(4, 14);
-  canvas_.printf("pos %3d,%3d", (int)s.ball.pos.x, (int)s.ball.pos.y);
+  // Game-over overlay.
+  if (s.phase == marble::Phase::GameOver) {
+    canvas_.setTextSize(2);
+    canvas_.setTextColor(TFT_RED, TFT_BLACK);
+    canvas_.setCursor(40, 36);
+    canvas_.print("TIME!");
+    canvas_.setTextSize(1);
+    canvas_.setTextColor(TFT_WHITE, TFT_BLACK);
+    canvas_.setCursor(40, 62);
+    canvas_.printf("score %d", s.score);
+    canvas_.setCursor(40, 74);
+    canvas_.printf("best  %d", best);
+    canvas_.setCursor(40, 86);
+    canvas_.print("BtnA: again");
+  }
 
   canvas_.pushSprite(0, 0);
 }

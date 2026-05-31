@@ -9,9 +9,9 @@ void App::begin() {
   view_.begin();
   imu_.begin();
 
-  // Task 6 isolates the tilt/physics feel -- no dots, holes, or timer yet.
-  cfg_.numDots  = 0;
-  cfg_.numHoles = 0;
+  // Full game: dots to collect, holes to dodge, on the 60 s clock (Config).
+  cfg_.numDots  = 4;
+  cfg_.numHoles = 3;
 
   state_.phase = marble::Phase::Calibrate;
   lastMs_ = millis();
@@ -36,7 +36,10 @@ void App::loop() {
     case marble::Phase::Playing: {
       marble::Vec2 tilt = imu_.read();
       marble::step(state_, cfg_, tilt, dt);
-      if (M5.BtnB.wasPressed()) {                // re-zero "level" mid-play
+      if (state_.phase == marble::Phase::GameOver) {       // step flipped it
+        if (state_.score > best_) best_ = state_.score;
+        Serial.printf("GAME OVER score=%d best=%d\n", state_.score, best_);
+      } else if (M5.BtnB.wasPressed()) {                   // re-zero "level"
         imu_.calibrate();
         Serial.println("recalibrated");
       }
