@@ -6,7 +6,7 @@
 // axes. We map raw accel x -> screen x (right = +) and y -> screen y (down = +).
 // If the ball rolls the WRONG way on first flash, flip the matching sign below;
 // if the axes feel SWAPPED, swap which raw axis feeds X vs Y in read().
-static constexpr float SCREEN_X_SIGN = 1.0f;
+static constexpr float SCREEN_X_SIGN = -1.0f;  // tilt left -> roll left (confirmed on flash)
 static constexpr float SCREEN_Y_SIGN = 1.0f;
 
 void ImuInput::begin() {
