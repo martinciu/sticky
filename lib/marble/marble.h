@@ -61,6 +61,7 @@ struct GameState {
   int score = 0;
   float timeLeft = 0.0f;
   float holeFlash = 0.0f; // >0 == just hit a hole (render hint), seconds
+  float fallTimer = 0.0f; // >0 == ball falling into a hole (anim + penalty), seconds
   float rollAngle = 0.0f; // accumulated roll for the spin animation (radians)
   uint32_t rng = 1u;      // xorshift32 state (deterministic spawns)
 };
@@ -84,9 +85,10 @@ bool bounceWalls(Ball &ball, const Config &cfg);
 // Returns how many were eaten this call.
 int eatDots(GameState &s, const Config &cfg);
 
-// If the ball's centre is inside any hole: subtract the time penalty (clamped
-// >= 0), reset the ball to centre with zero velocity, set holeFlash. Returns
-// true if a hole was hit.
+// If the ball's centre is inside any hole: start the fall (fallTimer =
+// holePenaltySec), snap the ball into that hole with zero velocity, set
+// holeFlash. No instant time loss -- step() keeps the clock running while the
+// ball falls, so the lost time IS the penalty. Returns true if a hole was hit.
 bool applyHoles(GameState &s, const Config &cfg);
 
 // Count the round clock down by dt; clamp at 0.

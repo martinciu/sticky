@@ -107,10 +107,12 @@ bool applyHoles(GameState& s, const Config& cfg) {
     float dx = s.holes[i].pos.x - s.ball.pos.x;
     float dy = s.holes[i].pos.y - s.ball.pos.y;
     if (dx*dx + dy*dy <= reach*reach) {
-      s.timeLeft -= cfg.holePenaltySec;
-      if (s.timeLeft < 0.0f) s.timeLeft = 0.0f;
-      s.ball.pos = { cfg.width * 0.5f, cfg.height * 0.5f };
-      s.ball.vel = { 0.0f, 0.0f };
+      // Start the fall: snap into the hole, freeze it, run the animation. The
+      // clock keeps ticking during the fall (in step), so the lost time IS the
+      // penalty -- no instant subtraction here.
+      s.fallTimer = cfg.holePenaltySec;
+      s.ball.pos  = s.holes[i].pos;
+      s.ball.vel  = { 0.0f, 0.0f };
       s.holeFlash = cfg.holeFlashSec;
       return true;
     }
@@ -129,6 +131,7 @@ void reset(GameState& s, const Config& cfg, uint32_t seed) {
   s.score     = 0;
   s.timeLeft  = cfg.roundSeconds;
   s.holeFlash = 0.0f;
+  s.fallTimer = 0.0f;
   s.rollAngle = 0.0f;
   s.ball.pos  = { cfg.width * 0.5f, cfg.height * 0.5f };
   s.ball.vel  = { 0.0f, 0.0f };
@@ -146,6 +149,23 @@ void reset(GameState& s, const Config& cfg, uint32_t seed) {
 
 void step(GameState& s, const Config& cfg, Vec2 tilt, float dt) {
   if (s.phase != Phase::Playing) return;
+
+  // Falling into a hole: the ball is frozen and uncontrollable, but the clock
+  // keeps running -- that lost time is the penalty. When the fall finishes,
+  // respawn at the centre and resume normal play.
+  if (s.fallTimer > 0.0f) {
+    s.fallTimer -= dt;
+    tickClock(s, dt);
+    if (s.holeFlash > 0.0f) { s.holeFlash -= dt; if (s.holeFlash < 0.0f) s.holeFlash = 0.0f; }
+    if (s.fallTimer <= 0.0f) {
+      s.fallTimer = 0.0f;
+      s.ball.pos = { cfg.width * 0.5f, cfg.height * 0.5f };
+      s.ball.vel = { 0.0f, 0.0f };
+    }
+    if (s.timeLeft <= 0.0f) s.phase = Phase::GameOver;
+    return;
+  }
+
   integrate(s.ball, tilt, cfg, dt);
   bounceWalls(s.ball, cfg);
   eatDots(s, cfg);

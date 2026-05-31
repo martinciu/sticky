@@ -87,28 +87,47 @@ void test_eat_dot_far_away_no_score(void) {
   TEST_ASSERT_EQUAL_INT(0, s.score);
 }
 
-void test_hole_penalty_resets_ball_and_flashes(void) {
+void test_hole_starts_fall_no_instant_penalty(void) {
   marble::Config cfg; cfg.numHoles = 1; cfg.holePenaltySec = 3.0f;
   marble::GameState s; s.timeLeft = 10.0f;
   s.ball.pos = {50.0f, 50.0f}; s.ball.vel = {20.0f, 20.0f};
   s.holes[0] = { {50.0f, 50.0f} };                 // ball centre inside the hole
   bool hit = marble::applyHoles(s, cfg);
   TEST_ASSERT_TRUE(hit);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 7.0f, s.timeLeft);              // -3 s
-  TEST_ASSERT_FLOAT_WITHIN(0.01f, cfg.width  * 0.5f, s.ball.pos.x);// reset to centre
-  TEST_ASSERT_FLOAT_WITHIN(0.01f, cfg.height * 0.5f, s.ball.pos.y);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, s.ball.vel.x);           // velocity killed
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 3.0f, s.fallTimer); // fall armed for holePenaltySec
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 10.0f, s.timeLeft); // NO instant time loss
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 50.0f, s.ball.pos.x);// snapped into the hole
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 50.0f, s.ball.pos.y);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, s.ball.vel.x);// velocity killed
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, s.ball.vel.y);
-  TEST_ASSERT_TRUE(s.holeFlash > 0.0f);                           // flash armed
+  TEST_ASSERT_TRUE(s.holeFlash > 0.0f);                // flash armed
 }
 
-void test_hole_penalty_clamps_time_at_zero(void) {
-  marble::Config cfg; cfg.numHoles = 1; cfg.holePenaltySec = 3.0f;
-  marble::GameState s; s.timeLeft = 2.0f;
-  s.ball.pos = {50.0f, 50.0f};
-  s.holes[0] = { {50.0f, 50.0f} };
+void test_step_during_fall_freezes_ball_and_ticks(void) {
+  marble::Config cfg; cfg.numDots = 0; cfg.numHoles = 1; cfg.holePenaltySec = 3.0f;
+  marble::GameState s; marble::reset(s, cfg, 1u);
+  s.timeLeft = 10.0f;
+  s.holes[0] = { {60.0f, 40.0f} };
+  s.ball.pos = {60.0f, 40.0f}; s.ball.vel = {0.0f, 0.0f};
+  marble::applyHoles(s, cfg);                            // arm the fall
+  marble::step(s, cfg, marble::Vec2{1.0f, 0.0f}, 0.5f);  // hard tilt -> must NOT move
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 60.0f, s.ball.pos.x); // frozen while falling
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 40.0f, s.ball.pos.y);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 2.5f, s.fallTimer);   // 3 - 0.5
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 9.5f, s.timeLeft);    // clock ran = the penalty
+}
+
+void test_fall_completes_respawns_centre(void) {
+  marble::Config cfg; cfg.numDots = 0; cfg.numHoles = 1; cfg.holePenaltySec = 3.0f;
+  marble::GameState s; marble::reset(s, cfg, 1u);
+  s.timeLeft = 10.0f;
+  s.holes[0] = { {60.0f, 40.0f} };
+  s.ball.pos = {60.0f, 40.0f};
   marble::applyHoles(s, cfg);
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, s.timeLeft);             // not negative
+  marble::step(s, cfg, marble::Vec2{0.0f, 0.0f}, 5.0f);  // overshoot the fall duration
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, s.fallTimer);            // fall finished
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, cfg.width  * 0.5f, s.ball.pos.x);// respawned at centre
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, cfg.height * 0.5f, s.ball.pos.y);
 }
 
 void test_tick_clock_counts_down_and_clamps(void) {
@@ -224,8 +243,9 @@ static void runAllTests(void) {
   RUN_TEST(test_bounce_none_in_centre);
   RUN_TEST(test_eat_dot_scores_and_respawns_clear);
   RUN_TEST(test_eat_dot_far_away_no_score);
-  RUN_TEST(test_hole_penalty_resets_ball_and_flashes);
-  RUN_TEST(test_hole_penalty_clamps_time_at_zero);
+  RUN_TEST(test_hole_starts_fall_no_instant_penalty);
+  RUN_TEST(test_step_during_fall_freezes_ball_and_ticks);
+  RUN_TEST(test_fall_completes_respawns_centre);
   RUN_TEST(test_tick_clock_counts_down_and_clamps);
   RUN_TEST(test_reset_starts_playing_in_bounds);
   RUN_TEST(test_step_rolls_ball_and_ticks_clock);

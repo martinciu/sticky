@@ -112,17 +112,30 @@ void BoardView::render(const marble::GameState &s, const marble::Config &cfg,
     canvas_.fillCircle(dx - 1, dy - 1, 1, DOT_GLINT);
   }
 
-  // Ball with procedural spin: a fixed specular highlight (light from top-left)
-  // plus a surface spot that orbits at the accumulated rollAngle, so the ball
-  // visibly rotates faster the faster it moves.
   int bx = BOARD_X + (int)s.ball.pos.x;
   int by = BOARD_Y + (int)s.ball.pos.y;
-  canvas_.fillCircle(bx, by, (int)cfg.ballR, TFT_WHITE);
-  float orbit = cfg.ballR * 0.55f;
-  int spx = bx + (int)(orbit * cosf(s.rollAngle));
-  int spy = by + (int)(orbit * sinf(s.rollAngle));
-  canvas_.fillCircle(spx, spy, 2, TFT_NAVY);            // rolling surface spot
-  canvas_.fillCircle(bx - 2, by - 2, 2, TFT_LIGHTGREY); // fixed highlight
+  if (s.fallTimer > 0.0f && cfg.holePenaltySec > 0.0f) {
+    // Falling into the hole: shrink the ball as it sinks (progress 0 -> 1). The
+    // ball sits at the hole centre, so this reads as it dropping into the pit.
+    float p = 1.0f - s.fallTimer / cfg.holePenaltySec;
+    if (p < 0.0f) p = 0.0f;
+    if (p > 1.0f) p = 1.0f;
+    int rr = (int)(cfg.ballR * (1.0f - p));
+    if (rr >= 1) {
+      canvas_.fillCircle(bx, by, rr, TFT_WHITE);
+      if (rr >= 3) canvas_.fillCircle(bx - 1, by - 1, 1, TFT_LIGHTGREY);
+    }
+  } else {
+    // Ball with procedural spin: a fixed specular highlight (light from top-left)
+    // plus a surface spot that orbits at the accumulated rollAngle, so the ball
+    // visibly rotates faster the faster it moves.
+    canvas_.fillCircle(bx, by, (int)cfg.ballR, TFT_WHITE);
+    float orbit = cfg.ballR * 0.55f;
+    int spx = bx + (int)(orbit * cosf(s.rollAngle));
+    int spy = by + (int)(orbit * sinf(s.rollAngle));
+    canvas_.fillCircle(spx, spy, 2, TFT_NAVY);            // rolling surface spot
+    canvas_.fillCircle(bx - 2, by - 2, 2, TFT_LIGHTGREY); // fixed highlight
+  }
 
   // Game-over overlay on a rounded panel so the text reads over the board.
   if (s.phase == marble::Phase::GameOver) {
