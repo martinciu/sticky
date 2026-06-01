@@ -2,10 +2,9 @@
 #include <M5Unified.h>
 
 void App::begin() {
-  auto cfg = M5.config();
-  M5.begin(cfg);
+  input_.begin();              // platform init: M5.begin (Stick) / M5Cardputer.begin (Cardputer)
   Serial.begin(115200);
-  M5.Display.setRotation(1);   // 240x135 landscape
+  M5.Display.setRotation(1);   // 240x135 landscape (both boards are 240x135)
   view_.begin();
   imu_.begin();
   sound_.begin();
@@ -27,7 +26,7 @@ void App::setTrack(Sound::Track t, uint32_t now) {
 }
 
 void App::loop() {
-  M5.update();
+  input_.update();   // refresh inputs (the Cardputer also rescans its keyboard)
   uint32_t now = millis();
   float dt = (now - lastMs_) / 1000.0f;
   lastMs_ = now;
@@ -45,8 +44,8 @@ void App::loop() {
         (M5.Power.isCharging() == m5::Power_Class::is_charging_t::is_charging);
   }
 
-  // BtnB toggles the background music (SFX keep playing).
-  if (M5.BtnB.wasPressed()) {
+  // Toggle the background music (SFX keep playing): BtnB on the Stick, Esc on the Cardputer.
+  if (input_.musicToggled()) {
     musicOn_ = !musicOn_;
     sound_.setMusic(musicOn_ ? desiredTrack_ : Sound::Track::None, now);
     Serial.printf("music %s\n", musicOn_ ? "ON" : "OFF");
@@ -54,7 +53,7 @@ void App::loop() {
 
   switch (state_.phase) {
     case marble::Phase::Calibrate:
-      if (M5.BtnA.wasPressed()) {
+      if (input_.startPressed()) {
         imu_.calibrate();
         marble::reset(state_, cfg_, micros());  // -> Phase::Playing
         sound_.sfxStart(now);
@@ -76,7 +75,7 @@ void App::loop() {
         sound_.sfxGameOver(now);
         setTrack(Sound::Track::Menu, now);
         Serial.printf("GAME OVER score=%d best=%d\n", state_.score, best_);
-      } else if (M5.BtnPWR.wasClicked()) {                 // side button: re-zero "level"
+      } else if (input_.recalibrate()) {                  // re-zero "level" (Stick: side button; Cardputer: C)
         imu_.calibrate();
         Serial.println("recalibrated");
       }
@@ -84,7 +83,7 @@ void App::loop() {
     }
 
     case marble::Phase::GameOver:
-      if (M5.BtnA.wasPressed()) {
+      if (input_.startPressed()) {
         marble::reset(state_, cfg_, micros());
         sound_.sfxStart(now);
         setTrack(Sound::Track::Game, now);

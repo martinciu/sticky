@@ -6,8 +6,15 @@
 // axes. We map raw accel x -> screen x (right = +) and y -> screen y (down = +).
 // If the ball rolls the WRONG way on first flash, flip the matching sign below;
 // if the axes feel SWAPPED, swap which raw axis feeds X vs Y in read().
-static constexpr float SCREEN_X_SIGN = -1.0f;  // tilt left -> roll left (confirmed on flash)
+#ifdef CARDPUTER
+// Cardputer Adv: held flat, its BMI270 sits differently than the StickS3's.
+// Confirmed on hardware: left/right came out inverted, so negate X; Y is correct.
+static constexpr float SCREEN_X_SIGN = -1.0f;  // tilt left/right was swapped -> negate X
 static constexpr float SCREEN_Y_SIGN = 1.0f;
+#else
+static constexpr float SCREEN_X_SIGN = -1.0f;  // tilt left -> roll left (confirmed on StickS3)
+static constexpr float SCREEN_Y_SIGN = 1.0f;
+#endif
 
 void ImuInput::begin() {
   ok_ = M5.Imu.isEnabled();
