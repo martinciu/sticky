@@ -1,5 +1,6 @@
 #include "board_view.h"
-#include <cmath> // sinf/cosf for the rolling-spin animation
+#include "input.h" // MARBLE_BTN_START / MARBLE_BTN_AGAIN control-hint labels
+#include <cmath>   // sinf/cosf for the rolling-spin animation
 
 // The board area is drawn below a small HUD strip. These origins plus
 // cfg.width/height must keep the board on-screen (240x135 landscape).
@@ -44,7 +45,7 @@ void BoardView::render(const marble::GameState &s, const marble::Config &cfg,
     canvas_.print("LAY FLAT");
     canvas_.setTextSize(1);
     canvas_.setCursor(8, 60);
-    canvas_.print("BTNA:START");
+    canvas_.print(MARBLE_BTN_START);
     canvas_.pushSprite(0, 0);
     return;
   }
@@ -155,7 +156,7 @@ void BoardView::render(const marble::GameState &s, const marble::Config &cfg,
     canvas_.setCursor(px + 12, py + 42);
     canvas_.printf("BEST  %d", best);
     canvas_.setCursor(px + 12, py + 54);
-    canvas_.print("BTNA:AGAIN");
+    canvas_.print(MARBLE_BTN_AGAIN);
   }
 
   canvas_.pushSprite(0, 0);
